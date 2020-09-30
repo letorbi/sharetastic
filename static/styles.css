@@ -1,0 +1,418 @@
+@font-face {
+  font-family: CallunaLight-Regular-Fontie;
+  src: url(/fonts/CallunaLight-Regular_gdi.eot);
+  src: url(/fonts/CallunaLight-Regular_gdi.eot?#iefix) format('embedded-opentype'), url(/fonts/CallunaLight-Regular_gdi.woff) format('woff'), url(/fonts/CallunaLight-Regular_gdi.ttf) format('truetype'), url(/fonts/CallunaLight-Regular_gdi.svg#CallunaLight-Regular) format('svg');
+  font-weight: 300;
+  font-style: normal;
+  font-stretch: normal;
+  unicode-range: U+0020-FB06
+}
+
+@font-face {
+  font-family: CallunaSansLight-Regular-Fontie;
+  src: url(/fonts/CallunaSansLight-Regular_gdi.eot);
+  src: url(/fonts/CallunaSansLight-Regular_gdi.eot?#iefix) format('embedded-opentype'), url(/fonts/CallunaSansLight-Regular_gdi.woff) format('woff'), url(/fonts/CallunaSansLight-Regular_gdi.ttf) format('truetype'), url(/fonts/CallunaSansLight-Regular_gdi.svg#CallunaSansLight-Regular) format('svg');
+  font-weight: 300;
+  font-style: normal;
+  font-stretch: normal;
+  unicode-range: U+0020-FB06
+}
+
+*,
+:after,
+:before {
+  background: 0 0;
+  border: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  margin: 0;
+  padding: 0;
+  outline: 0;
+  text-decoration: inherit;
+  -moz-osx-font-smoothing: inherit;
+  -webkit-font-smoothing: inherit;
+  vertical-align: bottom
+}
+
+::-moz-focus-inner {
+  border: none;
+  padding: 0
+}
+
+:invalid {
+  box-shadow: none
+}
+
+:-moz-ui-invalid {
+  box-shadow: none
+}
+
+:-moz-submit-invalid {
+  box-shadow: none
+}
+
+body {
+  background: #fffdf5;
+  color: #444440;
+  font-family: CallunaSansLight-Regular-Fontie, sans-serif;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1;
+  -moz-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: CallunaLight-Regular-Fontie, serif
+}
+
+h1 {
+  font-size: 4em
+}
+
+h2 {
+  font-size: 3.5em
+}
+
+h3 {
+  font-size: 2em
+}
+
+h4 {
+  font-size: 1.5em
+}
+
+h5 {
+  font-size: 1.25em
+}
+
+h6 {
+  font-size: 1.125em
+}
+
+a {
+  -webkit-transition: color .5s ease;
+  transition: color .5s ease
+}
+
+a:hover {
+  color: #f16b53
+}
+
+a:not([href]) {
+  display: block;
+  width: 0;
+  height: 0
+}
+
+a.Button {
+  display: inline-block;
+  background: #fffdf5;
+  color: inherit;
+  -webkit-transition: background .5s ease;
+  transition: background .5s ease
+}
+
+a.Button:hover {
+  background: #f16b53
+}
+
+button,
+button:after {
+  cursor: pointer;
+  -webkit-transition: color .5s ease;
+  transition: color .5s ease
+}
+
+button:disabled,
+button:disabled:after {
+  color: inherit;
+  cursor: auto
+}
+
+button:hover,
+button:hover:after {
+  color: #f16b53
+}
+
+.Logo {
+  display: table;
+  text-align: right;
+  position: relative
+}
+
+.Logo>* {
+  white-space: nowrap
+}
+
+.Logo small {
+    display: block;
+    font: 0.25em "CallunaSansLight-Regular-Fontie", sans-serif !important;
+    margin-top: 0.03333em; /* NOTE -0.3em (remove line-spacing) + 0.33333em (space) */
+    text-align: right !important;
+}
+
+.Button {
+  display: block;
+  background: #fff;
+  border-radius: .1825rem;
+  box-sizing: border-box;
+  padding: .5rem
+}
+
+.Button {
+  border-radius: 1em;
+  padding: .5em 1em
+}
+
+.Contact .T:before {
+  content: "+49 176 "
+}
+
+.Text {
+  text-align: justify;
+  line-height: 1.5
+}
+
+.Text h1,
+.Text h2,
+.Text h3,
+.Text h4,
+.Text h5,
+.Text h6 {
+  margin: 1em auto .5em auto
+}
+
+.Text p,
+.Text ul {
+  margin: .5em auto
+}
+
+.Text li {
+  margin: .25em auto .25em 2em
+}
+
+.Text a[href] {
+  color: #f16b53
+}
+
+.Text .Header {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0 1em 1em 1em
+}
+
+.Text .Title {
+  text-align: center
+}
+
+.Text .Title a {
+  color: inherit
+}
+
+#Viewport,
+body,
+html {
+  height: 100%;
+  margin: 0
+}
+
+.View {
+  display: -webkit-flex;
+  -webkit-flex-direction: column;
+  display: flex;
+  flex-direction: column;
+  height: 100%
+}
+
+.View>.Page {
+  display: -webkit-flex;
+  -webkit-flex-direction: column;
+  -webkit-flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  position: relative;
+  transition: border-left 1s;
+  width: 100%
+}
+
+.View>.Page>.Primary {
+  display: -webkit-flex;
+  -webkit-flex: 1 0 auto;
+  display: flex;
+  flex: 1 0 auto;
+  position: relative;
+  -webkit-flex-direction: column;
+  -webkit-justify-content: space-between;
+  flex-direction: column;
+  justify-content: space-between
+}
+
+.View>.Page>.Secondary {
+  -webkit-flex: 0 1 auto;
+  flex: 0 1 auto;
+  height: 0
+}
+
+.View>.Page>.Primary {
+  text-align: center;
+  padding: 5vh 5vw
+}
+
+.View>.Page>.Primary>.Top {
+  display: -webkit-flex;
+  -webkit-justify-content: space-between;
+  display: flex;
+  justify-content: space-between
+}
+
+.View>.Page>.Primary>.Top .Logo {
+  font-size: 4em
+}
+
+.View>.Page>.Primary>.Top nav {
+  text-align: right
+}
+
+.View>.Page>.Primary>.Top nav li {
+  display: inline-block;
+  list-style: none;
+  margin: 0 0 .5em 1em;
+  font-size: 1.125em
+}
+
+.View>.Page>.Primary>.Top nav a:after {
+  font-size: 1.5em
+}
+
+.View>.Page>.Primary>.Center {
+  color: #444440
+}
+
+.View>.Page>.Primary>.Center h2 {
+  max-width: 20em;
+  font-size: 3em;
+  margin: -15% auto 0 auto
+}
+
+.View>.Page>.Primary>.Center p {
+  font-size: 1.25em;
+  margin: 1em auto
+}
+
+.View>.Page>.Primary>.Bottom p {
+  font-size: 1.25em
+}
+
+.View>.Page>.Secondary>.Content {
+  background: #fffdf5;
+  border-top: .0625rem solid rgba(0, 0, 0, .1);
+  padding: 2.5vh 2.5vw;
+  text-align: center
+}
+
+.View>.Page>.Secondary>.Footer {
+  background: #444440;
+  border-top: .0125rem solid rgba(0, 0, 0, .1);
+  color: #fffdf5;
+  padding: 5vh 5vw;
+  text-align: center
+}
+
+.Content .Text>:first-child,
+.Content>:first-child {
+  margin-top: 0
+}
+
+.Content .Text>:last-child,
+.Content>:last-child {
+  margin-bottom: 0
+}
+
+.Content>.Text {
+  padding: 2.5vh 2.5%
+}
+
+.Content .Text {
+  max-width: 45em;
+  min-width: 20em;
+  margin: 0 auto;
+  -webkit-flex: 1 1 15em;
+  flex: 1 1 15em
+}
+
+#HeaderSnippet {
+  background: #95e2f1
+}
+
+#HeaderSnippet>.Bottom {
+  -webkit-transform: translateY(4vh);
+  transform: translateY(4vh)
+}
+
+#FooterSnippet .Contact {
+  font-size: .875em;
+  list-style: none
+}
+
+#FooterSnippet .Contact li {
+  display: inline-block;
+  margin: 0 3em 0 0
+}
+
+#FooterSnippet .Contact li:last-child {
+  margin: 0
+}
+
+@media screen and (min-width:1600px) {
+  body {
+    font-size: 1.125em
+  }
+}
+
+@media screen and (min-width:1800px) {
+  body {
+    font-size: 1.25em
+  }
+}
+
+@media screen and (max-height:640px),
+screen and (max-width:600px) {
+  body {
+    font-size: .875em
+  }
+}
+
+@media screen and (max-height:400px),
+screen and (max-width:400px) {
+  body {
+    font-size: .75em
+  }
+}
+
+@media screen and (max-width:640px) {
+  .View>.Page>.Primary>.Top {
+    display: block;
+    text-align: center
+  }
+  .View>.Page>.Primary>.Top nav {
+    margin-top: 1em;
+    text-align: center
+
+  #HeaderSnippet>.Top {
+    margin-left: -4vw;
+    margin-right: -4vw
+  }
+  #HeaderSnippet>.Top .Logo {
+    font-size: 3.9em
+  }
+}
