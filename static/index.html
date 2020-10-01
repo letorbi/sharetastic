@@ -3,6 +3,7 @@
 <head>
   <title>Sharetastic — super simple file-transfer</title>
   <style>@import url("/styles.css");</style>
+  <script src="./script.js"></script>
 </head>
 
 <body>
@@ -22,7 +23,9 @@
             </nav>
           </div>
           <div class="Center">
-            <button>Drag files on page or click here.</button>
+            <label class="Framed">Drag files on page or click here <input id="AddInput" type="file" multiple></input></label> 
+            <div id="FileList"></div>
+            <button id="UploadButton" class="Framed">Upload files</button>
           </div>
           <div class="Bottom">
             <p>↓ ↓ ↓</p>

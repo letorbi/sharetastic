@@ -98,49 +98,32 @@ h6 {
   font-size: 1.125em
 }
 
-a {
-  -webkit-transition: color .5s ease;
-  transition: color .5s ease
-}
-
-a:hover {
-  color: #f16b53
-}
-
 a:not([href]) {
   display: block;
   width: 0;
   height: 0
 }
 
-a.Button {
-  display: inline-block;
-  background: #fffdf5;
-  color: inherit;
-  -webkit-transition: background .5s ease;
-  transition: background .5s ease
-}
-
-a.Button:hover {
-  background: #f16b53
-}
-
+a,
 button,
-button:after {
+button:after,
+label {
   cursor: pointer;
   -webkit-transition: color .5s ease;
   transition: color .5s ease
+}
+
+a:hover,
+button:hover,
+button:hover:after,
+label:hover {
+  color: #f16b53
 }
 
 button:disabled,
 button:disabled:after {
   color: inherit;
   cursor: auto
-}
-
-button:hover,
-button:hover:after {
-  color: #f16b53
 }
 
 .Logo {
@@ -158,6 +141,14 @@ button:hover:after {
     font: 0.25em "CallunaSansLight-Regular-Fontie", sans-serif !important;
     margin-top: 0.03333em; /* NOTE -0.3em (remove line-spacing) + 0.33333em (space) */
     text-align: right !important;
+}
+
+.Framed {
+  display: inline-block;
+  border-style: solid;
+  border-radius: 3pt;
+  border-width: 1pt;
+  padding: 0.5rem;
 }
 
 .Button {
@@ -309,6 +300,10 @@ html {
   margin: 1em auto
 }
 
+.View>.Page>.Primary>.Center .Framed {
+  margin: 0.5em;
+}
+
 .View>.Page>.Primary>.Bottom p {
   font-size: 1.25em
 }
@@ -371,6 +366,18 @@ html {
 
 #FooterSnippet .Contact li:last-child {
   margin: 0
+}
+
+#AddInput {
+  display: none;
+}
+
+#FileList button {
+  margin: 0.25em;
+}
+
+#FileList:empty + #UploadButton {
+  display: none;
 }
 
 @media screen and (min-width:1600px) {
