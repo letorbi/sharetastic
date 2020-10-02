@@ -189,6 +189,20 @@ async function createZip() {
   return new Blob([bytes]);
 }
 
+// network
+
+function uploadBlob(blob) {
+  fetch("/files/", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: blob
+  }).then(function(response) {
+    console.log(response.status);
+  }, function(error) {
+    console.error(error);
+  });
+}
+
 // events
 
 function onDragOver(evt) {
@@ -217,9 +231,10 @@ function onAddChange(evt) {
 function onUploadClick() {
   var uploadButton = document.getElementById("UploadButton");
   uploadButton.disabled = true;
-  createZip().then(function(zipfile) {
+  createZip().then(function(zip) {
     uploadButton.disabled = false;
-    saveAs(zipfile, "sharetastic.zip");
+    uploadBlob(zip);
+    //saveAs(zipfile, "sharetastic.zip");
   }, function(error) {
     uploadButton.disabled = false;
     console.error(error);
