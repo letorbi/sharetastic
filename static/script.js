@@ -1,5 +1,14 @@
 var uploadFiles = new Array();
 
+// DOM
+
+function saveAs(object, filename) {
+  var link = document.createElement("a");
+  link.href = URL.createObjectURL(object);
+  link.download = filename;
+  link.click();
+}
+
 function updateFileList() {
   var fileList = document.getElementById("FileList");
   fileList.innerHTML = "";
@@ -14,12 +23,173 @@ function updateFileList() {
   });
 }
 
-function saveAs(object, filename) {
-  var link = document.createElement("a");
-  link.href = URL.createObjectURL(object);
-  link.download = filename;
-  link.click();
+// ZIP
+
+// CRC functions based on https://stackoverflow.com/a/18639999 
+
+function makeCRCTable(){
+  var c;
+  var table = new Uint32Array(256);
+  for(var n = 0; n < table.length; n++) {
+    c = n;
+    for(var k = 0; k < 8; k++) {
+      c = ((c&1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+    }
+    table[n] = c;
+  }
+  return table;
 }
+
+function generateCRC32(arr, table) {
+  var crc = 0 ^ (-1);
+  for (var i = 0; i < arr.length; i++) {
+    crc = (crc >>> 8) ^ table[(crc ^ arr[i]) & 0xFF];
+  }
+  return crc ^ (-1) >>> 0;
+};
+
+function generateMSTime(timestamp) {
+  var date = new Date(timestamp);
+  return ((date.getHours()) << 11) + ((date.getMinutes()) << 5) + ((date.getSeconds()/2) << 0);
+}
+
+function generateMSDate(timestamp) {
+  var date = new Date(timestamp);
+  return ((date.getFullYear() - 1980) << 9) + ((date.getMonth() + 1) << 5) + (date.getDate() << 0);
+}
+
+function toLittleEndian(num) {
+  return new Uint8Array([
+    num & 0x000000FF,
+    (num >>> 8) & 0x000000FF,
+    (num >>> 16) & 0x000000FF,
+    (num >>> 24) & 0x000000FF,
+  ]);
+}
+
+async function createZip() {
+  var crcTable = makeCRCTable();
+  
+  var zip = {
+    lfh: new Array(),
+    lfhSize: 0,
+    data: new Array(),
+    dataSize: 0,
+    dd: new Array(),
+    ddSize: 0,
+    cdfh: new Array(),
+    cdfhSize: 0,
+    oecd: null,
+    oecdSize: 0
+  };
+  
+  for (var i = 0; i < uploadFiles.length; i++) {
+    var o = toLittleEndian(zip.lfhSize + zip.dataSize + zip.ddSize);
+    var n = new TextEncoder("utf-8").encode(uploadFiles[i].name);
+    var l = toLittleEndian(n.length);
+    var t = toLittleEndian(generateMSTime(uploadFiles[i].lastModified));
+    var d = toLittleEndian(generateMSDate(uploadFiles[i].lastModified));
+
+    var lfh = new Uint8Array(30 + n.length);
+    lfh.set(new Uint8Array([
+      0x50, 0x4b, 0x03, 0x04, // signature
+      0x14, 0x00,             // min version (2.0)
+      0x08, 0x00,             // general purpose flags (data descriptor)
+      0x00, 0x00,             // compression (none)
+      t[0], t[1],             // modified time
+      d[0], d[1],             // modified date
+      0x00, 0x00, 0x00, 0x00, // CRC checksum (see dd)
+      0x00, 0x00, 0x00, 0x00, // compressed size (see dd)
+      0x00, 0x00, 0x00, 0x00, // uncompressed size (see dd)
+      l[0], l[1],             // file name length
+      0x00, 0x00,             // extras length
+    ]), 0);
+    lfh.set(n, 30);
+    zip.lfh.push(lfh);
+    zip.lfhSize += lfh.length;
+
+    var data = new Uint8Array(await uploadFiles[i].arrayBuffer());
+    zip.data.push(data)
+    zip.dataSize += data.length;
+
+    var s = toLittleEndian(uploadFiles[i].size);
+    var c = toLittleEndian(generateCRC32(data, crcTable));
+
+    var dd = new Uint8Array([
+      0x50, 0x4b, 0x07, 0x08, // signature
+      c[0], c[1], c[2], c[3], // CRC checksum 
+      s[0], s[1], s[2], s[3], // compressed size
+      s[0], s[1], s[2], s[3], // uncompressed size
+    ]);
+    zip.dd.push(dd);
+    zip.ddSize += dd.length;
+  
+    var cdfh = new Uint8Array(46 + n.length);
+    cdfh.set(new Uint8Array([
+      0x50, 0x4b, 0x01, 0x02, // signature
+      0x14, // created with version (2.0)
+      0x00, // created on system (FAT)
+      0x14, 0x00, // min version (2.0)
+      0x08, 0x00, // general purpose flags (data descriptor)
+      0x00, 0x00, // compression (none)
+      t[0], t[1], // modified time
+      d[0], d[1], // modified date
+      c[0], c[1], c[2], c[3], // CRC checksum
+      s[0], s[1], s[2], s[3], // compressed size
+      s[0], s[1], s[2], s[3], // uncompressed size
+      l[0], l[1], // file name length
+      0x00, 0x00, // extras length
+      0x00, 0x00, // comment length
+      0x00, 0x00, // start disk
+      0x00, 0x00, // internal attributes
+      0x00, 0x00, 0x00, 0x00, // external attributes
+      o[0], o[1], o[2], o[3], // local header offset
+    ]), 0);
+    cdfh.set(n, 46);
+    zip.cdfh.push(cdfh);
+    zip.cdfhSize += cdfh.length;
+  }
+
+  var o = toLittleEndian(zip.lfhSize + zip.dataSize + zip.ddSize);
+  var s = toLittleEndian(zip.cdfhSize);
+  var e = toLittleEndian(zip.cdfh.length);
+
+  zip.oecd = new Uint8Array([
+    0x50, 0x4B, 0x05, 0x06, // signature
+    0x00, 0x00,             // disk number
+    0x00, 0x00,             // disk with cd entries
+    e[0], e[1],             // disk file entries
+    e[0], e[1],             // total file entries
+    s[0], s[1], s[2], s[3], // CD size
+    o[0], o[1], o[2], o[3], // CD offset
+    0x00, 0x00              // comment length
+  ]);
+  zip.oecdSize = zip.oecd.length;
+ 
+  bytes = new Uint8Array(zip.lfhSize + zip.dataSize + zip.ddSize + zip.cdfhSize + zip.oecdSize);
+  offset = 0;
+ 
+  for (var i = 0; i < zip.data.length; i++) {
+    bytes.set(zip.lfh[i], offset);
+    offset += zip.lfh[i].length;
+    bytes.set(zip.data[i], offset);
+    offset += zip.data[i].length;
+    bytes.set(zip.dd[i], offset);
+    offset += zip.dd[i].length;
+  }
+
+  for (var i = 0; i < zip.data.length; i++) {
+    bytes.set(zip.cdfh[i], offset);
+    offset += zip.cdfh[i].length;
+  }
+  
+  bytes.set(zip.oecd, offset);
+  offset += zip.oecd.length;
+
+  return new Blob([bytes]);
+}
+
+// events
 
 function onDragOver(evt) {
   evt.preventDefault();
@@ -45,105 +215,9 @@ function onAddChange(evt) {
 }
 
 function onUploadClick() {
-  console.log("TODO upload all files");
-
-  var zip = {
-    lfh: new Array(),
-    data: new Array(),
-    dd: new Array(),
-    cdfh: new Array(),
-    oecd: null
-  };
-  
-  for (var i = 0; i < 1; i++) {
-    zip.lfh.push(new Uint8Array([
-      0x50, 0x4b, 0x03, 0x04, // signature
-      0x14, 0x00,             // min version (2.0)
-      0x08, 0x00,             // general purpose flags (TODO)
-      0x00, 0x00,             // compression (TODO)
-      0x00, 0x00,             // modified time (TODO)
-      0x00, 0x00,             // modified date (TODO)
-      0x00, 0x00, 0x00, 0x00, // CRC checksum (see dd)
-      0x00, 0x00, 0x00, 0x00, // compressed size (see dd)
-      0x00, 0x00, 0x00, 0x00, // uncompressed size (see dd)
-      0x04, 0x00,             // file name length (TODO)
-      0x00, 0x00,             // extras length (TODO)
-      0x74, 0x65, 0x73, 0x74,  // file name
-      //0x55, 0x54, 0x0d, 0x00, 0x07, 0x51, 0xe1, 0x76, // extras
-      //0x5f, 0x51, 0xe1, 0x76, 0x5f, 0x51, 0xe1, 0x76, // extras
-      //0x5f, 0x75, 0x78, 0x0b, 0x00, 0x01, 0x04, 0xe8, // extras
-      //0x03, 0x00, 0x00, 0x04, 0xe8, 0x03, 0x00, 0x00, // extras
-      //0x03, 0x00 // data?
-    ]));
-
-    zip.data.push(uploadFiles[i]),
-
-    zip.dd.push(new Uint8Array([
-      0x50, 0x4b, 0x07, 0x08, // signature
-      0x00, 0x00, 0x00, 0x00, // CRC checksum (TODO) 
-      0x00, 0x00, 0x00, 0x00, // compressed size (TODO)
-      0x00, 0x00, 0x00, 0x00  // uncompressed size (TODO)
-    ]));
-
-    zip.cdfh.push(new Uint8Array([
-      0x50, 0x4b, 0x01, 0x02, // signature
-      0x14, // created with version (2.0)
-      0x03, // created on system (unix)
-      0x14, 0x00, // min version (2.0)
-      0x08, 0x00, // general purpose flags
-      0x00, 0x00, // compression (none)
-      0x00, 0x00, // modified time (TODO)
-      0x00, 0x00, // modified date (TODO)
-      0x00, 0x00, 0x00, 0x00, // CRC checksum (TODO)
-      0x00, 0x00, 0x00, 0x00, // compressed size (TODO)
-      0x00, 0x00, 0x00, 0x00, // uncompressed size (TODO)
-      0x04, 0x00, // file name length (TODO)
-      0x00, 0x00, // extras length (TODO)
-      0x00, 0x00, // comment length (TODO)
-      0x00, 0x00, // start disk (0)
-      0x00, 0x00, // internal attributes (TODO)
-      0x00, 0x00, 0x00, 0x00, // external attributes (TODO)
-      0x00, 0x00, 0x00, 0x00, // local header offset (TODO)
-      0x74, 0x65, 0x73, 0x74,  // file name
-      //0x55, 0x54, 0x0d, 0x00, 0x07, 0x51, 0xe1, 0x76, // extras
-      //0x5f, 0x51, 0xe1, 0x76, 0x5f, 0x51, 0xe1, 0x76, // extras
-      //0x5f, 0x75, 0x78, 0x0b, 0x00, 0x01, 0x04, 0xe8, // extras
-      //0x03, 0x00, 0x00, 0x04, 0xe8, 0x03, 0x00, 0x00  // extras
-    ]));
-  }
-
-  zip.oecd = new Uint8Array([
-    0x50, 0x4B, 0x05, 0x06, // signature
-    0x00, 0x00,             // disk number
-    0x00, 0x00,             // disk with cd entries
-    0x01, 0x00,             // disk file entries (TODO)
-    0x01, 0x00,             // total file entries (TODO)
-    0x32, 0x00, 0x00, 0x00, // CD size
-    0x32, 0x00, 0x00, 0x00, // CD offset
-    0x00, 0x00              // comment length
-  ]);
- 
-  bytes = new Uint8Array(zip.lfh[0].length + zip.dd[0].length + zip.cdfh[0].length + zip.oecd.length);
-  bytes.set(zip.lfh[0]);
-  bytes.set(zip.dd[0], zip.lfh[0].length);
-  bytes.set(zip.cdfh[0], zip.lfh[0].length + zip.dd[0].length);
-  bytes.set(zip.oecd, zip.lfh[0].length + zip.dd[0].length + zip.cdfh[0].length);
-  var zipfile = new Blob([bytes]);
-
-  saveAs(zipfile, "sharetastic.zip");
-
-  /*const supportsRequestStreams = !new Request('', {
-    body: new ReadableStream(),
-    method: 'POST',
-  }).headers.has('Content-Type');
-
-  console.log(supportsRequestStreams);
-
-  fetch("/files/", {
-    method: 'POST',
-    body: uploadFiles[0].stream(),
-    allowHTTP1ForStreamingUpload: true
-  });*/
+  createZip().then(function(zipfile) {
+    saveAs(zipfile, "sharetastic.zip");
+  });
 }
 
 function onLoad() {
