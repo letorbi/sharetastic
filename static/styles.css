@@ -377,7 +377,7 @@ html {
 }
 
 #FileList:empty + #UploadButton {
-  display: none;
+  xdisplay: none;
 }
 
 @media screen and (min-width:1600px) {
