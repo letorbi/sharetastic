@@ -109,8 +109,8 @@ button,
 button:after,
 label {
   cursor: pointer;
-  -webkit-transition: color .5s ease;
-  transition: color .5s ease
+  -webkit-transition: color .5s ease, opacity .5s ease;
+  transition: color .5s ease, opacity .5s ease;
 }
 
 a:hover,
@@ -123,7 +123,8 @@ label:hover {
 button:disabled,
 button:disabled:after {
   color: inherit;
-  cursor: auto
+  cursor: auto;
+  opacity: 0.5;
 }
 
 .Logo {

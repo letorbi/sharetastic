@@ -82,7 +82,7 @@ async function createZip() {
     oecd: null,
     oecdSize: 0
   };
-  
+
   for (var i = 0; i < uploadFiles.length; i++) {
     var o = toLittleEndian(zip.lfhSize + zip.dataSize + zip.ddSize);
     var n = new TextEncoder("utf-8").encode(uploadFiles[i].name);
@@ -215,8 +215,15 @@ function onAddChange(evt) {
 }
 
 function onUploadClick() {
+  var uploadButton = document.getElementById("UploadButton");
+  uploadButton.disabled = true;
   createZip().then(function(zipfile) {
+    uploadButton.disabled = false;
     saveAs(zipfile, "sharetastic.zip");
+  }, function(error) {
+    uploadButton.disabled = false;
+    console.error(error);
+    alert("Something went wrong while uploading the files.");
   });
 }
 
