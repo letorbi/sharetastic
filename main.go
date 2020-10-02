@@ -20,11 +20,24 @@
 package main
 
 import (
-  "fmt"
+  "io"
+  "io/ioutil"
+  "log"
   "net/http"
+  "os"
+  "os/user"
 )
 
+var filedir string
+
 func main() {
+  usr, err := user.Current()
+  if err != nil {
+    log.Fatal(err)
+    return;
+  }
+  filedir = usr.HomeDir + "/.sharetastic/files";
+
   fs := http.FileServer(http.Dir("./static"))
   http.Handle("/", http.StripPrefix("/", fs))
   http.HandleFunc("/files/", files)
@@ -43,9 +56,16 @@ func files(w http.ResponseWriter, r *http.Request) {
 }
 
 func downloadFile(w http.ResponseWriter, r *http.Request) {
-  fmt.Fprintf(w, "TODO download\n")
+  log.Println("TODO download")
 }
 
 func uploadFile(w http.ResponseWriter, r *http.Request) {
-  fmt.Fprintf(w, "TODO upload\n")
+  os.MkdirAll(filedir, os.ModePerm)
+  out, err := ioutil.TempFile(filedir, "incoming.*.zip")
+  if err != nil {
+    http.Error(w, http.StatusText(500), 500)
+    log.Panic(err)
+  }
+  defer out.Close()
+  io.Copy(out, r.Body)
 }
