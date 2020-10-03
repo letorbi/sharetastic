@@ -82,6 +82,13 @@ func upload() http.Handler {
   return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
     var out *os.File
     var err error
+    
+    defer func() {
+      if err != nil {
+        log.Println(err)
+        http.Error(res, http.StatusText(500), 500)
+      }
+    }()
 
     err = os.MkdirAll(filedir, os.ModePerm)
     if err == nil {
@@ -98,13 +105,5 @@ func upload() http.Handler {
     if (err == nil) {
       err = out.Close()
     }
-    handleError(res, err)
   })
-}
-
-func handleError(res http.ResponseWriter, err error) {
-  if err != nil {
-    log.Println(err)
-    http.Error(res, http.StatusText(500), 500)
-  }
 }
