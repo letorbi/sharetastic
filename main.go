@@ -39,54 +39,67 @@ func main() {
   }
   filedir = usr.HomeDir + "/.sharetastic/files";
 
-  fs := http.FileServer(http.Dir("./static"))
-  http.Handle("/", http.StripPrefix("/", fs))
-  http.HandleFunc("/files/", files)
+  staticFs := http.FileServer(http.Dir("./static"))
+  downloadFs := http.FileServer(http.Dir(filedir))
+
+  http.Handle("/", http.StripPrefix("/", muxMethod(staticFs, nil)))
+  http.Handle("/files/", http.StripPrefix("/files/", muxMethod(hideRoot(downloadFs), upload())))
   http.ListenAndServe(":8090", nil)
 }
 
-func files(res http.ResponseWriter, req *http.Request) {
-  defer func() {
-    if r := recover(); r != nil {
-      http.Error(res, http.StatusText(500), 500)
-      log.Println("recovered from panic")
+func muxMethod(get http.Handler, post http.Handler) http.Handler {
+  return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+    switch req.Method {
+      case "GET":
+        if get != nil {
+          get.ServeHTTP(res, req)
+        } else {
+          http.Error(res, http.StatusText(405), 405)
+        }
+      case "POST":
+        if post != nil {
+          post.ServeHTTP(res, req)
+        } else {
+          http.Error(res, http.StatusText(405), 405)
+        }
+      default:
+        http.Error(res, http.StatusText(405), 405)
     }
-  }()
-
-  switch req.Method {
-    case "GET":     
-      downloadFile(res, req);
-    case "POST":
-      uploadFile(res, req);
-    default:
-      http.Error(res, http.StatusText(405), 405)
-  }
+  })
 }
 
-func downloadFile(res http.ResponseWriter, req *http.Request) {
-  log.Println("TODO download")
+func hideRoot(next http.Handler) http.Handler {
+  return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+    if len(req.URL.Path) == 0 {
+      http.Error(res, http.StatusText(404), 404)
+      return
+    }
+    next.ServeHTTP(res, req)
+  })
 }
 
-func uploadFile(res http.ResponseWriter, req *http.Request) {
-  var out *os.File
-  var err error
+func upload() http.Handler {
+  return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+    var out *os.File
+    var err error
 
-  err = os.MkdirAll(filedir, os.ModePerm)
-  if err == nil {
-    out, err = ioutil.TempFile(filedir, "*")
-  }
-  if err == nil {
-    defer func() { if err != nil { out.Close() } }()
-    _, err = io.Copy(out, req.Body)
-  }
-  if err == nil {
-    name := []byte(filepath.Base(out.Name()))
-    _, err = res.Write(name)
-  }
-  if (err == nil) {
-    err = out.Close()
-  }
-  handleError(res, err)
+    err = os.MkdirAll(filedir, os.ModePerm)
+    if err == nil {
+      out, err = ioutil.TempFile(filedir, "*")
+    }
+    if err == nil {
+      defer func() { if err != nil { out.Close() } }()
+      _, err = io.Copy(out, req.Body)
+    }
+    if err == nil {
+      name := []byte(filepath.Base(out.Name()))
+      _, err = res.Write(name)
+    }
+    if (err == nil) {
+      err = out.Close()
+    }
+    handleError(res, err)
+  })
 }
 
 func handleError(res http.ResponseWriter, err error) {
