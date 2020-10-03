@@ -26,6 +26,7 @@ import (
   "net/http"
   "os"
   "os/user"
+  "path/filepath"
 )
 
 var filedir string
@@ -61,11 +62,12 @@ func downloadFile(w http.ResponseWriter, r *http.Request) {
 
 func uploadFile(w http.ResponseWriter, r *http.Request) {
   os.MkdirAll(filedir, os.ModePerm)
-  out, err := ioutil.TempFile(filedir, "incoming.*.zip")
+  out, err := ioutil.TempFile(filedir, "*")
   if err != nil {
     http.Error(w, http.StatusText(500), 500)
     log.Panic(err)
   }
   defer out.Close()
   io.Copy(out, r.Body)
+  w.Write([]byte(filepath.Base(out.Name())));
 }
