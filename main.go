@@ -45,29 +45,53 @@ func main() {
   http.ListenAndServe(":8090", nil)
 }
 
-func files(w http.ResponseWriter, r *http.Request) {
-  switch r.Method {
+func files(res http.ResponseWriter, req *http.Request) {
+  defer func() {
+    if r := recover(); r != nil {
+      http.Error(res, http.StatusText(500), 500)
+      log.Println("recovered from panic")
+    }
+  }()
+
+  switch req.Method {
     case "GET":     
-      downloadFile(w, r);
+      downloadFile(res, req);
     case "POST":
-      uploadFile(w, r);
+      uploadFile(res, req);
     default:
-      http.Error(w, http.StatusText(405), 405)
+      http.Error(res, http.StatusText(405), 405)
   }
 }
 
-func downloadFile(w http.ResponseWriter, r *http.Request) {
+func downloadFile(res http.ResponseWriter, req *http.Request) {
   log.Println("TODO download")
 }
 
-func uploadFile(w http.ResponseWriter, r *http.Request) {
-  os.MkdirAll(filedir, os.ModePerm)
-  out, err := ioutil.TempFile(filedir, "*")
-  if err != nil {
-    http.Error(w, http.StatusText(500), 500)
-    log.Panic(err)
+func uploadFile(res http.ResponseWriter, req *http.Request) {
+  var out *os.File
+  var err error
+
+  err = os.MkdirAll(filedir, os.ModePerm)
+  if err == nil {
+    out, err = ioutil.TempFile(filedir, "*")
   }
-  defer out.Close()
-  io.Copy(out, r.Body)
-  w.Write([]byte(filepath.Base(out.Name())));
+  if err == nil {
+    defer func() { if err != nil { out.Close() } }()
+    _, err = io.Copy(out, req.Body)
+  }
+  if err == nil {
+    name := []byte(filepath.Base(out.Name()))
+    _, err = res.Write(name)
+  }
+  if (err == nil) {
+    err = out.Close()
+  }
+  handleError(res, err)
+}
+
+func handleError(res http.ResponseWriter, err error) {
+  if err != nil {
+    log.Println(err)
+    http.Error(res, http.StatusText(500), 500)
+  }
 }
