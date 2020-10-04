@@ -9,6 +9,34 @@ function saveAs(object, filename) {
   link.click();
 }
 
+function sendAsMail(href) {
+  var link = document.createElement("a");
+  var subject = encodeURIComponent("I've sent you some files via Sharetastic");
+  var body = encodeURIComponent("Hello,\n\nI've sent you some files via Sharetastic. Here is the download link:\n\n" + href + "\n\nThe link is valid for three days.\n\nRegards");
+  link.href = "mailto:?subject=" + subject + "&body=" + body;
+  link.click();
+}
+
+function copyToClipboard(href) {
+  var field = document.createElement("input");
+  document.body.appendChild(field);
+  field.type = "text";
+  field.value = href;
+  field.select();
+  field.setSelectionRange(0, 99999);
+  document.execCommand("copy");
+  document.body.removeChild(field);
+}
+
+function showWizard(stepClass) {
+  var wizard = document.getElementById("Wizard");
+  wizard.classList.remove("upload");
+  wizard.classList.remove("progress");
+  wizard.classList.remove("finish");
+  if (stepClass)
+    wizard.classList.add(stepClass);
+}
+
 function updateFileList() {
   var fileList = document.getElementById("FileList");
   fileList.innerHTML = "";
@@ -21,6 +49,7 @@ function updateFileList() {
     }, false);
     fileList.appendChild(filelistItem);
   });
+  showWizard(uploadFiles.length > 0 ? "upload" : null);
 }
 
 // ZIP
@@ -191,16 +220,13 @@ async function createZip() {
 
 // network
 
-function uploadBlob(blob) {
-  fetch("/files/", {
+async function uploadBlob(blob) {
+  response =  await fetch("/files/", {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
     body: blob
-  }).then(function(response) {
-    console.log(response.status);
-  }, function(error) {
-    console.error(error);
   });
+  return await response.text();
 }
 
 // events
@@ -230,15 +256,23 @@ function onAddChange(evt) {
 
 function onUploadClick() {
   var uploadButton = document.getElementById("UploadButton");
-  uploadButton.disabled = true;
+  showWizard("progress");
   createZip().then(function(zip) {
-    uploadButton.disabled = false;
-    uploadBlob(zip);
-    //saveAs(zipfile, "sharetastic.zip");
+    uploadBlob(zip).then(function(id) {
+      var href = location.href.slice(0, -1) + "#" + id;
+      document.getElementById("DownloadLink").innerText = href;
+      document.getElementById("CopyButton").addEventListener("click", function() {
+        copyToClipboard(href);
+      }, false);
+      document.getElementById("MailButton").addEventListener("click", function() {
+        sendAsMail(href);
+      }, false);
+      showWizard("finish");
+    });
   }, function(error) {
-    uploadButton.disabled = false;
     console.error(error);
     alert("Something went wrong while uploading the files.");
+    showWizard("upload");
   });
 }
 
