@@ -306,7 +306,6 @@ function onLoad() {
 function onHashChange() {
   if (location.hash) {
     showFiles("download");
-    showWizard("progress");
     downloadBlob(location.hash).then(function(blob) {
       saveAs(blob, "sharetastic.zip");
       location.href = "/";
