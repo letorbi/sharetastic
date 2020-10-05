@@ -123,10 +123,12 @@ label:hover {
 }
 
 button:disabled,
-button:disabled:after {
+button:disabled:after,
+label.disabled {
   color: inherit;
   cursor: auto;
   opacity: 0.5;
+  pointer-events:none;
 }
 
 em {

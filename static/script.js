@@ -28,6 +28,16 @@ function copyToClipboard(href) {
   document.body.removeChild(field);
 }
 
+function disableFiles() {
+  var files = document.getElementById("Files");
+  var buttons = files.getElementsByTagName("button");
+  var labels = files.getElementsByTagName("label");
+  for (var i=0; i<buttons.length; i++)
+    buttons[i].disabled = true;
+  for (var i=0; i<labels.length; i++)
+    labels[i].classList.add("disabled");
+}
+
 function selectClass(node, cls, clsArr) {
   for (var i = 0; i < clsArr.length; i++) {
     if (clsArr[i] == cls)
@@ -278,6 +288,7 @@ function onAddChange(evt) {
 function onUploadClick() {
   var uploadButton = document.getElementById("UploadButton");
   showWizard("progress");
+  disableFiles();
   createZip().then(function(zip) {
     uploadBlob(zip).then(function(id) {
       var href = location.href.slice(0, -1) + "#" + id;
