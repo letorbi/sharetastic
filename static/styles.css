@@ -21,8 +21,10 @@
 *,
 :after,
 :before {
+  appearance: none;
   background: 0 0;
   border: none;
+  box-sizing: border-box;
   color: inherit;
   font: inherit;
   line-height: inherit;
@@ -117,7 +119,7 @@ a:hover,
 button:hover,
 button:hover:after,
 label:hover {
-  color: #f16b53
+  color: #f16b53;
 }
 
 button:disabled,
@@ -125,6 +127,20 @@ button:disabled:after {
   color: inherit;
   cursor: auto;
   opacity: 0.5;
+}
+
+em {
+  color: #f16b53;
+}
+
+progress::-webkit-progress-bar {
+  background-color: transparent;
+}
+progress::-webkit-progress-value {
+  background-color: #444440;
+}
+progress::-moz-progress-bar {
+  background-color: #444440;
 }
 
 .Logo {
@@ -151,12 +167,14 @@ button:disabled:after {
   border-width: 1pt;
   padding: 0.5rem;
 }
+.Framed.compact {
+  padding: 0;
+}
 
 .Button {
   display: block;
   background: #fff;
   border-radius: .1825rem;
-  box-sizing: border-box;
   padding: .5rem
 }
 
@@ -287,22 +305,11 @@ html {
 }
 
 .View>.Page>.Primary>.Center {
-  color: #444440
-}
-
-.View>.Page>.Primary>.Center h2 {
-  max-width: 20em;
-  font-size: 3em;
-  margin: -15% auto 0 auto
+  flex: 1 1 0;
 }
 
 .View>.Page>.Primary>.Center p {
-  font-size: 1.25em;
-  margin: 1em auto
-}
-
-.View>.Page>.Primary>.Center .Framed {
-  margin: 0.5em;
+  margin: 0.5em auto
 }
 
 .View>.Page>.Primary>.Bottom p {
@@ -373,12 +380,61 @@ html {
   display: none;
 }
 
-#FileList button {
-  margin: 0.25em;
+#Files {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+#Files>* {
+  display: none;
+}
+#Files.upload>#Upload {
+  display: block;
+}
+#Files.download>#Download {
+  display: block;
 }
 
-#FileList:empty + #UploadButton {
+#FileList button {
+  margin: 0.5em;
+}
+
+#ProgressBar {
+  color: #444440;
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  z-index: -1;
+}
+
+#ProgressLabel {
+	display: inline-block;
+  color: transparent;
+  padding: 0.5em;
+  text-align: left;
+	position: relative;
+	height: 2em;
+	width: 20em;
+  z-index: 1;
+}
+#ProgressLabel:hover {
+  color: #f16b53;
+}
+
+#Wizard>* {
   display: none;
+}
+#Wizard.upload>#Upload {
+  display: block;
+}
+#Wizard.progress>#Progress {
+  display: block;
+}
+#Wizard.finish>#Finish {
+  display: block;
 }
 
 @media screen and (min-width:1600px) {
