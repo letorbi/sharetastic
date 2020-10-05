@@ -37,6 +37,14 @@ function showWizard(stepClass) {
     wizard.classList.add(stepClass);
 }
 
+function showFiles(stepClass) {
+  var files = document.getElementById("Files");
+  files.classList.remove("upload");
+  files.classList.remove("download");
+  if (stepClass)
+    files.classList.add(stepClass);
+}
+
 function updateFileList() {
   var fileList = document.getElementById("FileList");
   fileList.innerHTML = "";
@@ -220,12 +228,23 @@ async function createZip() {
 
 // network
 
+async function downloadBlob(id) {
+  response =  await fetch("/files/" + id.substr(1));
+  if (response.status >= 400) {
+    throw new Error("fetch returned with HTTP status code " + response.status);
+  }
+  return await response.blob();
+}
+
 async function uploadBlob(blob) {
   response =  await fetch("/files/", {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
     body: blob
   });
+  if (response.status >= 400) {
+    throw new Error("fetch returned with HTTP status code " + response.status);
+  }
   return await response.text();
 }
 
@@ -272,7 +291,6 @@ function onUploadClick() {
   }, function(error) {
     console.error(error);
     alert("Something went wrong while uploading the files.");
-    showWizard("upload");
   });
 }
 
@@ -282,6 +300,18 @@ function onLoad() {
   dropNode.addEventListener("drop", onDrop, false);
   document.getElementById("AddInput").addEventListener("change", onAddChange, false);
   document.getElementById("UploadButton").addEventListener("click", onUploadClick, false);
+
+  if (location.hash) {
+    showFiles("download");
+    showWizard("progress");
+    downloadBlob(location.hash).then(function(blob) {
+      saveAs(blob, "sharetastic.zip");
+      location.href = "/";
+    }, function(error) {
+      console.error(error);
+      alert("Something went wrong while downloading the files.");
+    });
+  }
 }
 
 window.addEventListener("load", onLoad, false);

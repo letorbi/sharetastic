@@ -386,6 +386,15 @@ html {
   align-items: center;
   justify-content: flex-end;
 }
+#Files>* {
+  display: none;
+}
+#Files.upload>#Upload {
+  display: block;
+}
+#Files.download>#Download {
+  display: block;
+}
 
 #FileList button {
   margin: 0.5em;
