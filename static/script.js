@@ -28,21 +28,23 @@ function copyToClipboard(href) {
   document.body.removeChild(field);
 }
 
-function showWizard(stepClass) {
-  var wizard = document.getElementById("Wizard");
-  wizard.classList.remove("upload");
-  wizard.classList.remove("progress");
-  wizard.classList.remove("finish");
-  if (stepClass)
-    wizard.classList.add(stepClass);
+function selectClass(node, cls, clsArr) {
+  for (var i = 0; i < clsArr.length; i++) {
+    if (clsArr[i] == cls)
+      node.classList.add(clsArr[i]);
+    else
+      node.classList.remove(clsArr[i]);
+  }
 }
 
-function showFiles(stepClass) {
+function showWizard(step) {
+  var wizard = document.getElementById("Wizard");
+  selectClass(wizard, step, ["upload", "progress", "finish"]);
+}
+
+function showFiles(step) {
   var files = document.getElementById("Files");
-  files.classList.remove("upload");
-  files.classList.remove("download");
-  if (stepClass)
-    files.classList.add(stepClass);
+  selectClass(files, step, ["upload", "download"]);
 }
 
 function updateFileList() {
