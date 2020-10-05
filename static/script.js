@@ -300,7 +300,10 @@ function onLoad() {
   dropNode.addEventListener("drop", onDrop, false);
   document.getElementById("AddInput").addEventListener("change", onAddChange, false);
   document.getElementById("UploadButton").addEventListener("click", onUploadClick, false);
+  onHashChange();
+}
 
+function onHashChange() {
   if (location.hash) {
     showFiles("download");
     showWizard("progress");
@@ -312,6 +315,10 @@ function onLoad() {
       alert("Something went wrong while downloading the files.");
     });
   }
+  else {
+    showFiles("upload");
+  }
 }
 
 window.addEventListener("load", onLoad, false);
+window.addEventListener("hashchange", onHashChange, false);
