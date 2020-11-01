@@ -240,24 +240,46 @@ async function createZip() {
 
 // network
 
-async function downloadBlob(id) {
-  response =  await fetch("/files/" + id.substr(1));
-  if (response.status >= 400) {
-    throw new Error("fetch returned with HTTP status code " + response.status);
-  }
-  return await response.blob();
+function downloadBlob(id) {
+  return new Promise(function(resolve, reject) {
+    var req = new XMLHttpRequest();
+    req.open("GET", "/files/" + id.substr(1), true);
+    req.responseType = "blob";
+    req.addEventListener("load", function() {
+      resolve(req.response);
+    }, false);
+    req.addEventListener("abort", function(evt) {
+      reject(new Error("XMLHttpRequest abort"));
+    }, false);
+    req.addEventListener("error", function(evt) {
+      reject(new Error("XMLHttpRequest error"));
+    }, false);
+    req.addEventListener("timeout", function(evt) {
+      reject(new Error("XMLHttpRequest timeout"));
+    }, false);
+    req.send(null);
+  });
 }
 
-async function uploadBlob(blob) {
-  response =  await fetch("/files/", {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/octet-stream' },
-    body: blob
+function uploadBlob(blob) {
+  return new Promise(function(resolve, reject) {
+    var req = new XMLHttpRequest();
+    req.open("POST", "/files/", true);
+    req.responseType = "text";
+    req.addEventListener("load", function() {
+      resolve(req.response);
+    }, false);
+    req.addEventListener("abort", function(evt) {
+      reject(new Error("XMLHttpRequest abort"));
+    }, false);
+    req.addEventListener("error", function(evt) {
+      reject(new Error("XMLHttpRequest error"));
+    }, false);
+    req.addEventListener("timeout", function(evt) {
+      reject(new Error("XMLHttpRequest timeout"));
+    }, false);
+    req.send(blob);
   });
-  if (response.status >= 400) {
-    throw new Error("fetch returned with HTTP status code " + response.status);
-  }
-  return await response.text();
 }
 
 // events
