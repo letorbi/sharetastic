@@ -122,7 +122,7 @@ function toLittleEndian(num) {
   ]);
 }
 
-async  function createZip() {
+async function createZip() {
   var crcTable = makeCRCTable();
   
   var zip = {
@@ -244,6 +244,29 @@ async  function createZip() {
   return new Blob([bytes]);
 }
 
+async function createNamedBlob() {
+  var n = new TextEncoder("utf-8").encode(uploadFiles[0].name);
+  var l = toLittleEndian(n.length);
+  var hdr = new Uint8Array(6 + n.length);
+  hdr.set(new Uint8Array([
+      0xFF, 0xFF, 0xFF, 0xFF, // signature
+      l[0], l[1]              // file name length
+  ]), 0);
+  hdr.set(n, 6);
+  var data = new Uint8Array(await uploadFiles[0].arrayBuffer());
+  
+  var bytes = new Uint8Array(hdr.length + data.length);
+  bytes.set(hdr, 0);
+  bytes.set(data, hdr.length);
+  
+  return new Blob([bytes]);
+}
+
+async function isNamedBlob(blob) {
+  var s = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+  return s[0] == 0xFF && s[1] == 0xFF && s[2] == 0xFF && s[3] == 0xFF;
+}
+
 // network
 
 function downloadBlob(id) {
@@ -321,12 +344,16 @@ function onAddChange(evt) {
 
 async function onUploadClick() {
   try{
+    var blob = null;
     var uploadButton = document.getElementById("UploadButton");
     showWizard("progress");
     updateProgressBar(0, 100);
     disableFiles();
-    var zip = await createZip()
-    var id =  await uploadBlob(zip)
+    if (uploadFiles.length > 1)
+      blob = await createZip()
+    else
+      blob = await createNamedBlob();
+    var id =  await uploadBlob(blob)
     var href = location.href.slice(0, -1) + "#" + id;
     document.getElementById("DownloadLink").innerText = href;
     document.getElementById("CopyButton").addEventListener("click", function() {
@@ -360,7 +387,12 @@ async function onHashChange() {
       showWizard("progress");
       updateProgressBar(0, 100);
       var blob = await downloadBlob(location.hash);
-      saveAs(blob, "sharetastic.zip");
+      if (await isNamedBlob(blob)) {
+        alert("TODO save named blob");
+      }
+      else {
+        saveAs(blob, "sharetastic.zip");
+      }
       location.href = "/";
     }
     catch(error) {
