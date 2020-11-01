@@ -113,6 +113,15 @@ function generateMSDate(timestamp) {
   return ((date.getFullYear() - 1980) << 9) + ((date.getMonth() + 1) << 5) + (date.getDate() << 0);
 }
 
+function fromLittleEndian(arr) {
+  var value = 0;
+  for (var i = arr.length -1; i >= 0; i--) {
+    value = value << 8;
+    value += arr[i];
+  }
+  return value;
+}
+
 function toLittleEndian(num) {
   return new Uint8Array([
     num & 0x000000FF,
@@ -122,7 +131,7 @@ function toLittleEndian(num) {
   ]);
 }
 
-async  function createZip() {
+async function createZip() {
   var crcTable = makeCRCTable();
   
   var zip = {
@@ -244,6 +253,39 @@ async  function createZip() {
   return new Blob([bytes]);
 }
 
+async function createNamedBlob() {
+  var n = new TextEncoder("utf-8").encode(uploadFiles[0].name);
+  var l = toLittleEndian(n.length);
+  var hdr = new Uint8Array(6 + n.length);
+  hdr.set(new Uint8Array([
+      0xFF, 0xFF, 0xFF, 0xFF, // signature
+      l[0], l[1]              // file name length
+  ]), 0);
+  hdr.set(n, 6);
+  var data = new Uint8Array(await uploadFiles[0].arrayBuffer());
+  
+  var bytes = new Uint8Array(hdr.length + data.length);
+  bytes.set(hdr, 0);
+  bytes.set(data, hdr.length);
+  
+  return new Blob([bytes]);
+}
+
+async function isNamedBlob(blob) {
+  var s = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+  console.log(s);
+  return s[0] == 0xFF && s[1] == 0xFF && s[2] == 0xFF && s[3] == 0xFF;
+}
+
+async function sliceNamedBlob(blob) {
+  var l = fromLittleEndian(new Uint8Array(await blob.slice(4, 6).arrayBuffer()));
+  var n = new TextDecoder("utf-8").decode(new Uint8Array(await blob.slice(6, 6+l).arrayBuffer()));
+  return {
+    name: n,
+    data: blob.slice(6+l)
+  };
+}
+
 // network
 
 function downloadBlob(id) {
@@ -321,12 +363,16 @@ function onAddChange(evt) {
 
 async function onUploadClick() {
   try{
+    var blob = null;
     var uploadButton = document.getElementById("UploadButton");
     showWizard("progress");
     updateProgressBar(0, 100);
     disableFiles();
-    var zip = await createZip()
-    var id =  await uploadBlob(zip)
+    if (uploadFiles.length > 1)
+      blob = await createZip()
+    else
+      blob = await createNamedBlob();
+    var id =  await uploadBlob(blob)
     var href = location.href.slice(0, -1) + "#" + id;
     document.getElementById("DownloadLink").innerText = href;
     document.getElementById("CopyButton").addEventListener("click", function() {
@@ -360,7 +406,13 @@ async function onHashChange() {
       showWizard("progress");
       updateProgressBar(0, 100);
       var blob = await downloadBlob(location.hash);
-      saveAs(blob, "sharetastic.zip");
+      if (await isNamedBlob(blob)) {
+        var namedBlob  = await sliceNamedBlob(blob);
+        saveAs(namedBlob.data, namedBlob.name);
+      }
+      else {
+        saveAs(blob, "sharetastic.zip");
+      }
       location.href = "/";
     }
     catch(error) {
