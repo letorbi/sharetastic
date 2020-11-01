@@ -113,6 +113,15 @@ function generateMSDate(timestamp) {
   return ((date.getFullYear() - 1980) << 9) + ((date.getMonth() + 1) << 5) + (date.getDate() << 0);
 }
 
+function fromLittleEndian(arr) {
+  var value = 0;
+  for (var i = arr.length -1; i >= 0; i--) {
+    value = value << 8;
+    value += arr[i];
+  }
+  return value;
+}
+
 function toLittleEndian(num) {
   return new Uint8Array([
     num & 0x000000FF,
@@ -264,7 +273,17 @@ async function createNamedBlob() {
 
 async function isNamedBlob(blob) {
   var s = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+  console.log(s);
   return s[0] == 0xFF && s[1] == 0xFF && s[2] == 0xFF && s[3] == 0xFF;
+}
+
+async function sliceNamedBlob(blob) {
+  var l = fromLittleEndian(new Uint8Array(await blob.slice(4, 6).arrayBuffer()));
+  var n = new TextDecoder("utf-8").decode(new Uint8Array(await blob.slice(6, 6+l).arrayBuffer()));
+  return {
+    name: n,
+    data: blob.slice(6+l)
+  };
 }
 
 // network
@@ -388,7 +407,8 @@ async function onHashChange() {
       updateProgressBar(0, 100);
       var blob = await downloadBlob(location.hash);
       if (await isNamedBlob(blob)) {
-        alert("TODO save named blob");
+        var namedBlob  = await sliceNamedBlob(blob);
+        saveAs(namedBlob.data, namedBlob.name);
       }
       else {
         saveAs(blob, "sharetastic.zip");
