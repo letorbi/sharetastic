@@ -122,7 +122,7 @@ function toLittleEndian(num) {
   ]);
 }
 
-async function createZip() {
+async  function createZip() {
   var crcTable = makeCRCTable();
   
   var zip = {
@@ -319,27 +319,29 @@ function onAddChange(evt) {
   updateFileList();
 }
 
-function onUploadClick() {
-  var uploadButton = document.getElementById("UploadButton");
-  showWizard("progress");
-  updateProgressBar(0, 100);
-  disableFiles();
-  createZip().then(function(zip) {
-    uploadBlob(zip).then(function(id) {
-      var href = location.href.slice(0, -1) + "#" + id;
-      document.getElementById("DownloadLink").innerText = href;
-      document.getElementById("CopyButton").addEventListener("click", function() {
-        copyToClipboard(href);
-      }, false);
-      document.getElementById("MailButton").addEventListener("click", function() {
-        sendAsMail(href);
-      }, false);
-      showWizard("finish");
-    });
-  }, function(error) {
+async function onUploadClick() {
+  try{
+    var uploadButton = document.getElementById("UploadButton");
+    showWizard("progress");
+    updateProgressBar(0, 100);
+    disableFiles();
+    var zip = await createZip()
+    var id =  await uploadBlob(zip)
+    var href = location.href.slice(0, -1) + "#" + id;
+    document.getElementById("DownloadLink").innerText = href;
+    document.getElementById("CopyButton").addEventListener("click", function() {
+      copyToClipboard(href);
+    }, false);
+    document.getElementById("MailButton").addEventListener("click", function() {
+      sendAsMail(href);
+    }, false);
+    showWizard("finish");
+  }
+  catch(error) {
     console.error(error);
     alert("Something went wrong while uploading the files.");
-  });
+    location.href = "/";
+  }
 }
 
 function onLoad() {
@@ -351,18 +353,21 @@ function onLoad() {
   onHashChange();
 }
 
-function onHashChange() {
+async function onHashChange() {
   if (location.hash) {
-    showFiles("download");
-    showWizard("progress");
-    updateProgressBar(0, 100);
-    downloadBlob(location.hash).then(function(blob) {
+    try {
+      showFiles("download");
+      showWizard("progress");
+      updateProgressBar(0, 100);
+      var blob = await downloadBlob(location.hash);
       saveAs(blob, "sharetastic.zip");
       location.href = "/";
-    }, function(error) {
+    }
+    catch(error) {
       console.error(error);
       alert("Something went wrong while downloading the files.");
-    });
+      location.href = "/";
+    }
   }
   else {
     showFiles("upload");
