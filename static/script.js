@@ -72,6 +72,12 @@ function updateFileList() {
   showWizard(uploadFiles.length > 0 ? "upload" : null);
 }
 
+function updateProgressBar(loaded, total) {
+  var percent = loaded/total * 100;
+  document.getElementById("ProgressBar").value = percent;
+  document.getElementById("ProgressLabel").firstChild.innerHTML = percent;
+}
+
 // ZIP
 
 // CRC functions based on https://stackoverflow.com/a/18639999 
@@ -245,6 +251,9 @@ function downloadBlob(id) {
     var req = new XMLHttpRequest();
     req.open("GET", "/files/" + id.substr(1), true);
     req.responseType = "blob";
+    req.addEventListener("progress", function(evt) {
+      updateProgressBar(evt.loaded, evt.total);
+    }, false);
     req.addEventListener("load", function() {
       resolve(req.response);
     }, false);
@@ -266,6 +275,9 @@ function uploadBlob(blob) {
     var req = new XMLHttpRequest();
     req.open("POST", "/files/", true);
     req.responseType = "text";
+    req.upload.addEventListener("progress", function(evt) {
+      updateProgressBar(evt.loaded, evt.total);
+    }, false);
     req.addEventListener("load", function() {
       resolve(req.response);
     }, false);
@@ -310,6 +322,7 @@ function onAddChange(evt) {
 function onUploadClick() {
   var uploadButton = document.getElementById("UploadButton");
   showWizard("progress");
+  updateProgressBar(0, 100);
   disableFiles();
   createZip().then(function(zip) {
     uploadBlob(zip).then(function(id) {
@@ -342,6 +355,7 @@ function onHashChange() {
   if (location.hash) {
     showFiles("download");
     showWizard("progress");
+    updateProgressBar(0, 100);
     downloadBlob(location.hash).then(function(blob) {
       saveAs(blob, "sharetastic.zip");
       location.href = "/";
