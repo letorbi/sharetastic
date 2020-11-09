@@ -75,7 +75,7 @@ function updateFileList() {
 function updateProgressBar(loaded, total) {
   var percent = loaded/total * 100;
   document.getElementById("ProgressBar").value = percent;
-  document.getElementById("ProgressLabel").firstChild.innerHTML = percent;
+  document.getElementById("ProgressLabel").firstChild.innerHTML = percent.toFixed(2);
 }
 
 // ZIP
