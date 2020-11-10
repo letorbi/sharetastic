@@ -297,7 +297,10 @@ function downloadBlob(id) {
       updateProgressBar(evt.loaded, evt.total);
     }, false);
     req.addEventListener("load", function() {
-      resolve(req.response);
+      if (req.status >= 400)
+        reject(req.status);
+      else
+        resolve(req.response);
     }, false);
     req.addEventListener("abort", function(evt) {
       reject(new Error("XMLHttpRequest abort"));
@@ -321,7 +324,10 @@ function uploadBlob(blob) {
       updateProgressBar(evt.loaded, evt.total);
     }, false);
     req.addEventListener("load", function() {
-      resolve(req.response);
+      if (req.status >= 400)
+        reject(req.status);
+      else
+        resolve(req.response);
     }, false);
     req.addEventListener("abort", function(evt) {
       reject(new Error("XMLHttpRequest abort"));
