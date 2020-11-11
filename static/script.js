@@ -297,7 +297,10 @@ function downloadBlob(id) {
       updateProgressBar(evt.loaded, evt.total);
     }, false);
     req.addEventListener("load", function() {
-      resolve(req.response);
+      if (req.status >= 400)
+        reject(req.status);
+      else
+        resolve(req.response);
     }, false);
     req.addEventListener("abort", function(evt) {
       reject(new Error("XMLHttpRequest abort"));
@@ -321,7 +324,10 @@ function uploadBlob(blob) {
       updateProgressBar(evt.loaded, evt.total);
     }, false);
     req.addEventListener("load", function() {
-      resolve(req.response);
+      if (req.status >= 400)
+        reject(req.status);
+      else
+        resolve(req.response);
     }, false);
     req.addEventListener("abort", function(evt) {
       reject(new Error("XMLHttpRequest abort"));
@@ -333,6 +339,33 @@ function uploadBlob(blob) {
       reject(new Error("XMLHttpRequest timeout"));
     }, false);
     req.send(blob);
+  });
+}
+
+function checkAuth(callback) {
+  return new Promise(function(resolve, reject) {
+    var req = new XMLHttpRequest();
+    req.open("POST", "/files/", true);
+    req.responseType = "text";
+    req.upload.addEventListener("progress", function(evt) {
+      updateProgressBar(evt.loaded, evt.total);
+    }, false);
+    req.addEventListener("load", function() {
+      if (req.status >= 400)
+        reject(req.status);
+      else
+        resolve(callback());
+    }, false);
+    req.addEventListener("abort", function(evt) {
+      reject(new Error("XMLHttpRequest abort"));
+    }, false);
+    req.addEventListener("error", function(evt) {
+      reject(new Error("XMLHttpRequest error"));
+    }, false);
+    req.addEventListener("timeout", function(evt) {
+      reject(new Error("XMLHttpRequest timeout"));
+    }, false);
+    req.send();
   });
 }
 
@@ -372,7 +405,7 @@ async function onUploadClick() {
       blob = await createZip()
     else
       blob = await createNamedBlob();
-    var id =  await uploadBlob(blob)
+    var id =  await checkAuth(uploadBlob.bind(null, blob));
     var href = location.href.slice(0, -1) + "#" + id;
     document.getElementById("DownloadLink").innerText = href;
     document.getElementById("CopyButton").addEventListener("click", function() {
