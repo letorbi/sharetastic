@@ -96,31 +96,29 @@ func upload() http.Handler {
       }
     }()
 
-    if (authorize(req)) {
-      err = os.MkdirAll(filedir, os.ModePerm)
-      if err == nil {
-        out, err = ioutil.TempFile(filedir, "*")
-      }
-      if err == nil {
-        defer func() { if err != nil { out.Close() } }()
-        _, err = io.Copy(out, req.Body)
-      }
-      if err == nil {
-        name := []byte(filepath.Base(out.Name()))
-        _, err = res.Write(name)
-      }
-      if (err == nil) {
-        err = out.Close()
+    if (req.Header.Get("Authorization") == auth) {
+      if (req.Header.Get("Content-Length") == "0") {
+        res.WriteHeader(http.StatusAccepted)
+      } else {
+        err = os.MkdirAll(filedir, os.ModePerm)
+        if err == nil {
+          out, err = ioutil.TempFile(filedir, "*")
+        }
+        if err == nil {
+          defer func() { if err != nil { out.Close() } }()
+          _, err = io.Copy(out, req.Body)
+        }
+        if err == nil {
+          name := []byte(filepath.Base(out.Name()))
+          _, err = res.Write(name)
+        }
+        if (err == nil) {
+          err = out.Close()
+        }
       }
     } else {
-      :log.Println("Unauthorized access from " + req.RemoteAddr)
       res.Header().Set("WWW-Authenticate", "Basic realm=\"Restricted\"")
       http.Error(res, http.StatusText(401), 401)
     }
   })
-}
-
-func authorize(req *http.Request) bool {
-  header := req.Header.Get("Authorization")
-  return header == auth
 }
