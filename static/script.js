@@ -452,8 +452,13 @@ function onLoad() {
   onHashChange();
 }
 
+document.addEventListener('visibilitychange', function() {
+  if (!document.getElementById("Files").classList.contains("download"))
+    onHashChange();
+});
+
 async function onHashChange() {
-  if (location.hash) {
+  if (location.hash && document.visibilityState == "visible") {
     try {
       showFiles("download");
       showWizard("progress");
@@ -466,12 +471,12 @@ async function onHashChange() {
       else {
         saveAs(blob, "sharetastic.zip");
       }
-      setTimeout(function(){location.href = "/";}, 0);
+      //setTimeout(function(){location.href = "/";}, 0);
     }
     catch(error) {
       console.error(error);
       alert("Something went wrong while downloading the files.");
-      location.href = "/";
+      //location.href = "/";
     }
   }
   else {
