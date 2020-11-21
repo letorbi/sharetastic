@@ -19,7 +19,9 @@
 // State
 
 var state = {
-  files: []
+  files: [],
+  hash: "",
+  visible: false
 }
 
 // DOM
@@ -393,6 +395,31 @@ function checkAuth(callback) {
   });
 }
 
+async function startDownload(newState, oldState) {
+  if (newState.hash && newState.hash != oldState.hash && newState.visible) {
+    try {
+      showFiles("download");
+      showWizard("progress");
+      updateProgressBar(0, 100);
+      var blob = await downloadBlob(location.hash);
+      if (await isNamedBlob(blob)) {
+        var namedBlob  = await sliceNamedBlob(blob);
+        saveAs(namedBlob.data, namedBlob.name);
+      }
+      else {
+        saveAs(blob, "sharetastic.zip");
+      }
+    }
+    catch(error) {
+      console.error(error);
+      alert("Something went wrong while downloading the files.");
+    }
+  }
+  else {
+    showFiles("upload");
+  }
+}
+
 // events
 
 function onDragOver(evt) {
@@ -448,45 +475,32 @@ async function onUploadClick() {
 }
 
 function onLoad() {
+  var newState = Object.assign({}, state);
+  newState.hash = location.hash;
+  newState.visible = document.visibilityState == "visible";
   var dropNode = document.getElementById("HeaderSnippet");
   dropNode.addEventListener("dragover", onDragOver, false);
   dropNode.addEventListener("drop", onDrop, false);
   document.getElementById("AddInput").addEventListener("change", onAddChange, false);
   document.getElementById("UploadButton").addEventListener("click", onUploadClick, false);
-  onHashChange();
+  startDownload(newState, state);
+  state = newState;
 }
 
-document.addEventListener('visibilitychange', function() {
-  if (!document.getElementById("Files").classList.contains("download"))
-    onHashChange();
-});
+function onVisibilityChange() {
+  var newState = Object.assign({}, state);
+  newState.visible = document.visibilityState == "visible";
+  startDownload(newState, state);
+  state = newState;
+};
 
-async function onHashChange() {
-  if (location.hash && document.visibilityState == "visible") {
-    try {
-      showFiles("download");
-      showWizard("progress");
-      updateProgressBar(0, 100);
-      var blob = await downloadBlob(location.hash);
-      if (await isNamedBlob(blob)) {
-        var namedBlob  = await sliceNamedBlob(blob);
-        saveAs(namedBlob.data, namedBlob.name);
-      }
-      else {
-        saveAs(blob, "sharetastic.zip");
-      }
-      //setTimeout(function(){location.href = "/";}, 0);
-    }
-    catch(error) {
-      console.error(error);
-      alert("Something went wrong while downloading the files.");
-      //location.href = "/";
-    }
-  }
-  else {
-    showFiles("upload");
-  }
-}
+function onHashChange() {
+  var newState = Object.assign({}, state);
+  newState.hash = location.hash;
+  startDownload(newState, state);
+  state = newState;
+};
 
 window.addEventListener("load", onLoad, false);
+window.addEventListener("visibilitychange", onVisibilityChange, false);
 window.addEventListener("hashchange", onHashChange, false);
