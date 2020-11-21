@@ -464,7 +464,7 @@ async function onHashChange() {
       else {
         saveAs(blob, "sharetastic.zip");
       }
-      location.href = "/";
+      setTimeout(function(){location.href = "/";}, 0);
     }
     catch(error) {
       console.error(error);
