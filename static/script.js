@@ -1,10 +1,29 @@
 var uploadFiles = new Array();
 
+// Polyfills
+
+// https://gist.github.com/hanayashiki/8dac237671343e7f0b15de617b0051bd
+(function () {
+  File.prototype.arrayBuffer = File.prototype.arrayBuffer || myArrayBuffer;
+  Blob.prototype.arrayBuffer = Blob.prototype.arrayBuffer || myArrayBuffer;
+
+  function myArrayBuffer() {
+    return new Promise((resolve) => {
+      let fr = new FileReader();
+      fr.onload = () => {
+        resolve(fr.result);
+      };
+      fr.readAsArrayBuffer(this);
+    })
+  }
+})();
+
 // DOM
 
 function saveAs(object, filename) {
   var link = document.createElement("a");
   link.href = URL.createObjectURL(object);
+  link.target = "_self";
   link.download = filename;
   link.click();
 }
@@ -14,6 +33,7 @@ function sendAsMail(href) {
   var subject = encodeURIComponent("I've sent you some files via Sharetastic");
   var body = encodeURIComponent("Hello,\n\nI've sent you some files via Sharetastic. Here is the download link:\n\n" + href + "\n\nThe link is valid for three days.\n\nRegards");
   link.href = "mailto:?subject=" + subject + "&body=" + body;
+  link.target = "_self";
   link.click();
 }
 
@@ -446,7 +466,7 @@ async function onHashChange() {
       else {
         saveAs(blob, "sharetastic.zip");
       }
-      location.href = "/";
+      setTimeout(function(){location.href = "/";}, 0);
     }
     catch(error) {
       console.error(error);
