@@ -23,6 +23,7 @@ var uploadFiles = new Array();
 function saveAs(object, filename) {
   var link = document.createElement("a");
   link.href = URL.createObjectURL(object);
+  link.target = "_self";
   link.download = filename;
   link.click();
 }
@@ -32,6 +33,7 @@ function sendAsMail(href) {
   var subject = encodeURIComponent("I've sent you some files via Sharetastic");
   var body = encodeURIComponent("Hello,\n\nI've sent you some files via Sharetastic. Here is the download link:\n\n" + href + "\n\nThe link is valid for three days.\n\nRegards");
   link.href = "mailto:?subject=" + subject + "&body=" + body;
+  link.target = "_self";
   link.click();
 }
 
