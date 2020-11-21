@@ -16,21 +16,21 @@
   }
 })();
 
-// State
+// Store
 
-var state = {
+var store = {
   files: [],
   hash: "",
   visible: false
 };
 
-var stateChangeListeners = [];
+var storeChangeListeners = [];
 
-function updateState(changes) {
-  var previous = state;
-  state = Object.assign({}, state, changes);
-  for (var i = 0; i < stateChangeListeners.length; i++) {
-    stateChangeListeners[i](state, previous);
+function updateStore(changes) {
+  var previous = store;
+  store = Object.assign({}, store, changes);
+  for (var i = 0; i < storeChangeListeners.length; i++) {
+    storeChangeListeners[i](store, previous);
   }
 }
 
@@ -168,12 +168,12 @@ async function createZip() {
     oecdSize: 0
   };
 
-  for (var i = 0; i < state.files.length; i++) {
+  for (var i = 0; i < store.files.length; i++) {
     var o = toLittleEndian(zip.lfhSize + zip.dataSize + zip.ddSize);
-    var n = new TextEncoder("utf-8").encode(state.files[i].name);
+    var n = new TextEncoder("utf-8").encode(store.files[i].name);
     var l = toLittleEndian(n.length);
-    var t = toLittleEndian(generateMSTime(state.files[i].lastModified));
-    var d = toLittleEndian(generateMSDate(state.files[i].lastModified));
+    var t = toLittleEndian(generateMSTime(store.files[i].lastModified));
+    var d = toLittleEndian(generateMSDate(store.files[i].lastModified));
 
     var lfh = new Uint8Array(30 + n.length);
     lfh.set(new Uint8Array([
@@ -193,11 +193,11 @@ async function createZip() {
     zip.lfh.push(lfh);
     zip.lfhSize += lfh.length;
 
-    var data = new Uint8Array(await state.files[i].arrayBuffer());
+    var data = new Uint8Array(await store.files[i].arrayBuffer());
     zip.data.push(data)
     zip.dataSize += data.length;
 
-    var s = toLittleEndian(state.files[i].size);
+    var s = toLittleEndian(store.files[i].size);
     var c = toLittleEndian(generateCRC32(data, crcTable));
 
     var dd = new Uint8Array([
@@ -275,7 +275,7 @@ async function createZip() {
 }
 
 async function createNamedBlob() {
-  var n = new TextEncoder("utf-8").encode(state.files[0].name);
+  var n = new TextEncoder("utf-8").encode(store.files[0].name);
   var l = toLittleEndian(n.length);
   var hdr = new Uint8Array(6 + n.length);
   hdr.set(new Uint8Array([
@@ -283,7 +283,7 @@ async function createNamedBlob() {
       l[0], l[1]              // file name length
   ]), 0);
   hdr.set(n, 6);
-  var data = new Uint8Array(await state.files[0].arrayBuffer());
+  var data = new Uint8Array(await store.files[0].arrayBuffer());
   
   var bytes = new Uint8Array(hdr.length + data.length);
   bytes.set(hdr, 0);
@@ -390,10 +390,10 @@ function checkAuth(callback) {
   });
 }
 
-// state change listeners
+// store change listeners
 
-stateChangeListeners.push(async function(newState, oldState) {
-  if (newState.hash && newState.hash != oldState.hash && newState.visible) {
+storeChangeListeners.push(async function(newStore, oldStore) {
+  if (newStore.hash && newStore.hash != oldStore.hash && newStore.visible) {
     try {
       showFiles("download");
       showWizard("progress");
@@ -414,25 +414,25 @@ stateChangeListeners.push(async function(newState, oldState) {
   }
 });
 
-stateChangeListeners.push(function(newState, oldState) {
+storeChangeListeners.push(function(newStore, oldStore) {
   var fileList = document.getElementById("FileList");
   fileList.innerHTML = "";
-  newState.files.forEach(function(uploadFile, i) {
+  newStore.files.forEach(function(uploadFile, i) {
     var filelistItem = document.createElement("button");
     filelistItem.innerText = uploadFile.name;
     filelistItem.addEventListener("click", function() {
-      updateState({
-        files: [...state.files].splice(i, 1)
+      updateStore({
+        files: [...store.files].splice(i, 1)
       });
     }, false);
     fileList.appendChild(filelistItem);
   });
 });
 
-stateChangeListeners.push(function(newState, oldState) {
-  if (newState.files.length > 0 && oldState.files.length == 0)
+storeChangeListeners.push(function(newStore, oldStore) {
+  if (newStore.files.length > 0 && oldStore.files.length == 0)
     showWizard("upload");
-  else if (oldState.files.length > 0 && newState.files.length == 0)
+  else if (oldStore.files.length > 0 && newStore.files.length == 0)
     showWizard(null);
 });
 
@@ -444,23 +444,23 @@ function onDragOver(evt) {
 
 function onDrop(evt) {
   evt.preventDefault();
-  var files = [...state.files];
+  var files = [...store.files];
   for (var i = 0; i < evt.dataTransfer.items.length; i++) {
     if (evt.dataTransfer.items[i].kind === 'file')
       files.push(evt.dataTransfer.items[i].getAsFile());
     else
       console.warn("dropped item[" + i + "] of kind '" + evt.dataTransfer.items[i].kind  + "' ignored");
   }
-  updateState({ files });
+  updateStore({ files });
 }
 
 function onAddChange(evt) {
   evt.preventDefault();
-  var files = [...state.files];
+  var files = [...store.files];
   for (var i = 0; i < evt.target.files.length; i++) {
     files.push(evt.target.files[i]);
   }
-  updateState({ files });
+  updateStore({ files });
 }
 
 async function onUploadClick() {
@@ -470,7 +470,7 @@ async function onUploadClick() {
     showWizard("progress");
     updateProgressBar(0, 100);
     disableFiles();
-    if (state.files.length > 1)
+    if (store.files.length > 1)
       blob = await createZip()
     else
       blob = await createNamedBlob();
@@ -498,20 +498,20 @@ function onLoad() {
   dropNode.addEventListener("drop", onDrop, false);
   document.getElementById("AddInput").addEventListener("change", onAddChange, false);
   document.getElementById("UploadButton").addEventListener("click", onUploadClick, false);
-  updateState({
+  updateStore({
     hash: location.hash,
     visible: document.visibilityState == "visible"
   });
 }
 
 function onVisibilityChange() {
-  updateState({
+  updateStore({
     visible: document.visibilityState == "visible"
   });
 };
 
 function onHashChange() {
-  updateState({
+  updateStore({
     hash: location.hash
   });
 };
