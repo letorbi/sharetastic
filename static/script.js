@@ -1,5 +1,3 @@
-var uploadFiles = new Array();
-
 // Polyfills
 
 // https://gist.github.com/hanayashiki/8dac237671343e7f0b15de617b0051bd
@@ -17,6 +15,12 @@ var uploadFiles = new Array();
     })
   }
 })();
+
+// State
+
+var state = {
+  files: []
+}
 
 // DOM
 
@@ -80,16 +84,16 @@ function showFiles(step) {
 function updateFileList() {
   var fileList = document.getElementById("FileList");
   fileList.innerHTML = "";
-  uploadFiles.forEach(function(uploadFile, i) {
+  state.files.forEach(function(uploadFile, i) {
     filelistItem = document.createElement("button");
     filelistItem.innerText = uploadFile.name;
     filelistItem.addEventListener("click", function() {
-      uploadFiles.splice(i, 1);
+      state.files.splice(i, 1);
       updateFileList();
     }, false);
     fileList.appendChild(filelistItem);
   });
-  showWizard(uploadFiles.length > 0 ? "upload" : null);
+  showWizard(state.files.length > 0 ? "upload" : null);
 }
 
 function updateProgressBar(loaded, total) {
@@ -167,12 +171,12 @@ async function createZip() {
     oecdSize: 0
   };
 
-  for (var i = 0; i < uploadFiles.length; i++) {
+  for (var i = 0; i < state.files.length; i++) {
     var o = toLittleEndian(zip.lfhSize + zip.dataSize + zip.ddSize);
-    var n = new TextEncoder("utf-8").encode(uploadFiles[i].name);
+    var n = new TextEncoder("utf-8").encode(state.files[i].name);
     var l = toLittleEndian(n.length);
-    var t = toLittleEndian(generateMSTime(uploadFiles[i].lastModified));
-    var d = toLittleEndian(generateMSDate(uploadFiles[i].lastModified));
+    var t = toLittleEndian(generateMSTime(state.files[i].lastModified));
+    var d = toLittleEndian(generateMSDate(state.files[i].lastModified));
 
     var lfh = new Uint8Array(30 + n.length);
     lfh.set(new Uint8Array([
@@ -192,11 +196,11 @@ async function createZip() {
     zip.lfh.push(lfh);
     zip.lfhSize += lfh.length;
 
-    var data = new Uint8Array(await uploadFiles[i].arrayBuffer());
+    var data = new Uint8Array(await state.files[i].arrayBuffer());
     zip.data.push(data)
     zip.dataSize += data.length;
 
-    var s = toLittleEndian(uploadFiles[i].size);
+    var s = toLittleEndian(state.files[i].size);
     var c = toLittleEndian(generateCRC32(data, crcTable));
 
     var dd = new Uint8Array([
@@ -274,7 +278,7 @@ async function createZip() {
 }
 
 async function createNamedBlob() {
-  var n = new TextEncoder("utf-8").encode(uploadFiles[0].name);
+  var n = new TextEncoder("utf-8").encode(state.files[0].name);
   var l = toLittleEndian(n.length);
   var hdr = new Uint8Array(6 + n.length);
   hdr.set(new Uint8Array([
@@ -282,7 +286,7 @@ async function createNamedBlob() {
       l[0], l[1]              // file name length
   ]), 0);
   hdr.set(n, 6);
-  var data = new Uint8Array(await uploadFiles[0].arrayBuffer());
+  var data = new Uint8Array(await state.files[0].arrayBuffer());
   
   var bytes = new Uint8Array(hdr.length + data.length);
   bytes.set(hdr, 0);
@@ -399,7 +403,7 @@ function onDrop(evt) {
   evt.preventDefault();
   for (var i = 0; i < evt.dataTransfer.items.length; i++) {
     if (evt.dataTransfer.items[i].kind === 'file')
-      uploadFiles.push(evt.dataTransfer.items[i].getAsFile());
+      state.files.push(evt.dataTransfer.items[i].getAsFile());
     else
       console.warn("dropped item[" + i + "] of kind '" + evt.dataTransfer.items[i].kind  + "' ignored");
   }
@@ -409,7 +413,7 @@ function onDrop(evt) {
 function onAddChange(evt) {
   evt.preventDefault();
   for (var i = 0; i < evt.target.files.length; i++) {
-    uploadFiles.push(evt.target.files[i]);
+    state.files.push(evt.target.files[i]);
   }
   updateFileList();
 }
@@ -421,7 +425,7 @@ async function onUploadClick() {
     showWizard("progress");
     updateProgressBar(0, 100);
     disableFiles();
-    if (uploadFiles.length > 1)
+    if (state.files.length > 1)
       blob = await createZip()
     else
       blob = await createNamedBlob();
