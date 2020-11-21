@@ -22,6 +22,16 @@ var state = {
   files: [],
   hash: "",
   visible: false
+};
+
+var stateChangeListeners = [];
+
+function updateState(changes) {
+  var previous = state;
+  state = Object.assign({}, state, changes);
+  for (var i = 0; i < stateChangeListeners.length; i++) {
+    stateChangeListeners[i](state, previous);
+  }
 }
 
 // DOM
@@ -81,21 +91,6 @@ function showWizard(step) {
 function showFiles(step) {
   var files = document.getElementById("Files");
   selectClass(files, step, ["upload", "download"]);
-}
-
-function updateFileList() {
-  var fileList = document.getElementById("FileList");
-  fileList.innerHTML = "";
-  state.files.forEach(function(uploadFile, i) {
-    filelistItem = document.createElement("button");
-    filelistItem.innerText = uploadFile.name;
-    filelistItem.addEventListener("click", function() {
-      state.files.splice(i, 1);
-      updateFileList();
-    }, false);
-    fileList.appendChild(filelistItem);
-  });
-  showWizard(state.files.length > 0 ? "upload" : null);
 }
 
 function updateProgressBar(loaded, total) {
@@ -395,7 +390,9 @@ function checkAuth(callback) {
   });
 }
 
-async function startDownload(newState, oldState) {
+// state change listeners
+
+stateChangeListeners.push(async function(newState, oldState) {
   if (newState.hash && newState.hash != oldState.hash && newState.visible) {
     try {
       showFiles("download");
@@ -415,10 +412,29 @@ async function startDownload(newState, oldState) {
       alert("Something went wrong while downloading the files.");
     }
   }
-  else {
-    showFiles("upload");
-  }
-}
+});
+
+stateChangeListeners.push(function(newState, oldState) {
+  var fileList = document.getElementById("FileList");
+  fileList.innerHTML = "";
+  newState.files.forEach(function(uploadFile, i) {
+    var filelistItem = document.createElement("button");
+    filelistItem.innerText = uploadFile.name;
+    filelistItem.addEventListener("click", function() {
+      updateState({
+        files: [...state.files].splice(i, 1)
+      });
+    }, false);
+    fileList.appendChild(filelistItem);
+  });
+});
+
+stateChangeListeners.push(function(newState, oldState) {
+  if (newState.files.length > 0 && oldState.files.length == 0)
+    showWizard("upload");
+  else if (oldState.files.length > 0 && newState.files.length == 0)
+    showWizard(null);
+});
 
 // events
 
@@ -428,21 +444,23 @@ function onDragOver(evt) {
 
 function onDrop(evt) {
   evt.preventDefault();
+  var files = [...state.files];
   for (var i = 0; i < evt.dataTransfer.items.length; i++) {
     if (evt.dataTransfer.items[i].kind === 'file')
-      state.files.push(evt.dataTransfer.items[i].getAsFile());
+      files.push(evt.dataTransfer.items[i].getAsFile());
     else
       console.warn("dropped item[" + i + "] of kind '" + evt.dataTransfer.items[i].kind  + "' ignored");
   }
-  updateFileList();
+  updateState({ files });
 }
 
 function onAddChange(evt) {
   evt.preventDefault();
+  var files = [...state.files];
   for (var i = 0; i < evt.target.files.length; i++) {
-    state.files.push(evt.target.files[i]);
+    files.push(evt.target.files[i]);
   }
-  updateFileList();
+  updateState({ files });
 }
 
 async function onUploadClick() {
@@ -475,30 +493,27 @@ async function onUploadClick() {
 }
 
 function onLoad() {
-  var newState = Object.assign({}, state);
-  newState.hash = location.hash;
-  newState.visible = document.visibilityState == "visible";
   var dropNode = document.getElementById("HeaderSnippet");
   dropNode.addEventListener("dragover", onDragOver, false);
   dropNode.addEventListener("drop", onDrop, false);
   document.getElementById("AddInput").addEventListener("change", onAddChange, false);
   document.getElementById("UploadButton").addEventListener("click", onUploadClick, false);
-  startDownload(newState, state);
-  state = newState;
+  updateState({
+    hash: location.hash,
+    visible: document.visibilityState == "visible"
+  });
 }
 
 function onVisibilityChange() {
-  var newState = Object.assign({}, state);
-  newState.visible = document.visibilityState == "visible";
-  startDownload(newState, state);
-  state = newState;
+  updateState({
+    visible: document.visibilityState == "visible"
+  });
 };
 
 function onHashChange() {
-  var newState = Object.assign({}, state);
-  newState.hash = location.hash;
-  startDownload(newState, state);
-  state = newState;
+  updateState({
+    hash: location.hash
+  });
 };
 
 window.addEventListener("load", onLoad, false);
