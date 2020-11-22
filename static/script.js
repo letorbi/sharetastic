@@ -444,14 +444,15 @@ function sendMessage(msg, payload) {
 function stateVisible() {
   var fileList = document.getElementById("FileList");
   fileList.innerHTML = "";
+  showFiles("upload");
   showWizard(null);
 }
 
 async function stateDownloading() {
   try {
+    updateProgressBar(0, 100);
     showFiles("download");
     showWizard("progress");
-    updateProgressBar(0, 100);
     var blob = await downloadBlob(location.hash);
     if (await isNamedBlob(blob)) {
       var namedBlob  = await sliceNamedBlob(blob);
@@ -480,20 +481,17 @@ function statePrepared() {
     }, false);
     fileList.appendChild(filelistItem);
   });
+  showFiles("upload");
   showWizard("upload");
 }
 
 async function stateUploading() {
   try{
-    var blob = null;
+    disableFiles();
+    updateProgressBar(0, 100);
     showFiles("upload");
     showWizard("progress");
-    updateProgressBar(0, 100);
-    disableFiles();
-    if (uploadFiles.length > 1)
-      blob = await createZip()
-    else
-      blob = await createNamedBlob();
+    var blob = uploadFiles.length > 1 ? await createZip() : await createNamedBlob();
     var id = await checkAuth(uploadBlob.bind(null, blob));
     sendMessage("uploadDone", id);
   }
@@ -512,6 +510,7 @@ function stateUploaded(id) {
   document.getElementById("MailButton").addEventListener("click", function() {
     sendAsMail(href);
   }, false);
+  showFiles("upload");
   showWizard("finish");
 }
 
