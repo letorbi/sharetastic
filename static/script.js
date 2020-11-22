@@ -21,6 +21,7 @@
 var store = {
   files: [],
   hash: "",
+  progress: 0,
   visible: false,
   wizardStep: null,
   filesStep: "upload"
@@ -83,12 +84,6 @@ function selectClass(node, cls, clsArr) {
     else
       node.classList.remove(clsArr[i]);
   }
-}
-
-function updateProgressBar(loaded, total) {
-  var percent = loaded/total * 100;
-  document.getElementById("ProgressBar").value = percent;
-  document.getElementById("ProgressLabel").firstChild.innerHTML = percent.toFixed(2);
 }
 
 // ZIP
@@ -307,7 +302,7 @@ function downloadBlob(id) {
     req.open("GET", "/files/" + id.substr(1), true);
     req.responseType = "blob";
     req.addEventListener("progress", function(evt) {
-      updateProgressBar(evt.loaded, evt.total);
+      updateStore({ progress: evt.loaded / evt.total });
     }, false);
     req.addEventListener("load", function() {
       if (req.status >= 400)
@@ -334,7 +329,7 @@ function uploadBlob(blob) {
     req.open("POST", "/files/", true);
     req.responseType = "text";
     req.upload.addEventListener("progress", function(evt) {
-      updateProgressBar(evt.loaded, evt.total);
+      updateStore({ progress: evt.loaded / evt.total });
     }, false);
     req.addEventListener("load", function() {
       if (req.status >= 400)
@@ -361,7 +356,7 @@ function checkAuth(callback) {
     req.open("POST", "/files/", true);
     req.responseType = "text";
     req.upload.addEventListener("progress", function(evt) {
-      updateProgressBar(evt.loaded, evt.total);
+      updateStore({ progress: evt.loaded / evt.total });
     }, false);
     req.addEventListener("load", function() {
       if (req.status >= 400)
@@ -388,10 +383,10 @@ storeChangeListeners.push(async function(newStore, oldStore) {
   if (newStore.hash && newStore.hash != oldStore.hash && newStore.visible) {
     try {
       updateStore({
+        progress: 0,
         filesStep: "download",
         wizardStep: "progress",
       });
-      updateProgressBar(0, 100);
       var blob = await downloadBlob(location.hash);
       if (await isNamedBlob(blob)) {
         var namedBlob  = await sliceNamedBlob(blob);
@@ -439,6 +434,12 @@ storeChangeListeners.push(function(newStore, oldStore) {
   selectClass(files, newStore.filesStep, ["upload", "download"]);
 });
 
+storeChangeListeners.push(function(newStore, oldStore) {
+  var percent = newStore.progress * 100;
+  document.getElementById("ProgressBar").value = percent;
+  document.getElementById("ProgressLabel").firstChild.innerHTML = percent.toFixed(2);
+});
+
 // events
 
 function onDragOver(evt) {
@@ -469,10 +470,10 @@ function onAddChange(evt) {
 async function onUploadClick() {
   try{
     updateStore({
+      progress: 0,
       filesStep: "upload",
       wizardStep: "progress",
     });
-    updateProgressBar(0, 100);
     disableFiles();
     var blob = null;
     if (store.files.length > 1)
