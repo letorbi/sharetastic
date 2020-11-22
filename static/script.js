@@ -384,7 +384,7 @@ storeChangeListeners.push(async function(newStore, oldStore) {
     try {
       updateStore({
         progress: 0,
-        filesStep: "download",
+        filesStep: "downloading",
         wizardStep: "progress",
       });
       var blob = await downloadBlob(location.hash);
@@ -395,6 +395,7 @@ storeChangeListeners.push(async function(newStore, oldStore) {
       else {
         saveAs(blob, "sharetastic.zip");
       }
+      updateStore({ filesStep: "downloaded" });
     }
     catch(error) {
       console.error(error);
@@ -431,7 +432,7 @@ storeChangeListeners.push(function(newStore, oldStore) {
 
 storeChangeListeners.push(function(newStore, oldStore) {
   var files = document.getElementById("Files");
-  selectClass(files, newStore.filesStep, ["upload", "download"]);
+  selectClass(files, newStore.filesStep, ["upload", "downloading", "downloaded"]);
 });
 
 storeChangeListeners.push(function(newStore, oldStore) {
@@ -489,9 +490,7 @@ async function onUploadClick() {
     document.getElementById("MailButton").addEventListener("click", function() {
       sendAsMail(href);
     }, false);
-    updateStore({
-      wizardStep: "finish",
-    });
+    updateStore({ wizardStep: "finish" });
   }
   catch(error) {
     console.error(error);
