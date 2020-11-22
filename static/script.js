@@ -21,7 +21,9 @@
 var store = {
   files: [],
   hash: "",
-  visible: false
+  visible: false,
+  wizardStep: null,
+  filesStep: "upload"
 };
 
 var storeChangeListeners = [];
@@ -81,16 +83,6 @@ function selectClass(node, cls, clsArr) {
     else
       node.classList.remove(clsArr[i]);
   }
-}
-
-function showWizard(step) {
-  var wizard = document.getElementById("Wizard");
-  selectClass(wizard, step, ["upload", "progress", "finish"]);
-}
-
-function showFiles(step) {
-  var files = document.getElementById("Files");
-  selectClass(files, step, ["upload", "download"]);
 }
 
 function updateProgressBar(loaded, total) {
@@ -395,8 +387,10 @@ function checkAuth(callback) {
 storeChangeListeners.push(async function(newStore, oldStore) {
   if (newStore.hash && newStore.hash != oldStore.hash && newStore.visible) {
     try {
-      showFiles("download");
-      showWizard("progress");
+      updateStore({
+        filesStep: "download",
+        wizardStep: "progress",
+      });
       updateProgressBar(0, 100);
       var blob = await downloadBlob(location.hash);
       if (await isNamedBlob(blob)) {
@@ -415,25 +409,34 @@ storeChangeListeners.push(async function(newStore, oldStore) {
 });
 
 storeChangeListeners.push(function(newStore, oldStore) {
-  var fileList = document.getElementById("FileList");
-  fileList.innerHTML = "";
-  newStore.files.forEach(function(uploadFile, i) {
-    var filelistItem = document.createElement("button");
-    filelistItem.innerText = uploadFile.name;
-    filelistItem.addEventListener("click", function() {
-      updateStore({
-        files: [...store.files].splice(i, 1)
-      });
-    }, false);
-    fileList.appendChild(filelistItem);
-  });
+  if (newStore.files.length != oldStore.files.length) {
+    var fileList = document.getElementById("FileList");
+    fileList.innerHTML = "";
+    newStore.files.forEach(function(uploadFile, i) {
+      var filelistItem = document.createElement("button");
+      filelistItem.innerText = uploadFile.name;
+      filelistItem.addEventListener("click", function() {
+        files = [...store.files]
+        files.splice(i, 1);
+        updateStore({ files });
+      }, false);
+      fileList.appendChild(filelistItem);
+    });
+    if (newStore.files.length > 0)
+      updateStore({wizardStep: "upload"});
+    else
+      updateStore({wizardStep: null});
+  }
 });
 
 storeChangeListeners.push(function(newStore, oldStore) {
-  if (newStore.files.length > 0 && oldStore.files.length == 0)
-    showWizard("upload");
-  else if (oldStore.files.length > 0 && newStore.files.length == 0)
-    showWizard(null);
+  var wizard = document.getElementById("Wizard");
+  selectClass(wizard, newStore.wizardStep, ["upload", "progress", "finish"]);
+});
+
+storeChangeListeners.push(function(newStore, oldStore) {
+  var files = document.getElementById("Files");
+  selectClass(files, newStore.filesStep, ["upload", "download"]);
 });
 
 // events
@@ -465,11 +468,13 @@ function onAddChange(evt) {
 
 async function onUploadClick() {
   try{
-    var blob = null;
-    var uploadButton = document.getElementById("UploadButton");
-    showWizard("progress");
+    updateStore({
+      filesStep: "upload",
+      wizardStep: "progress",
+    });
     updateProgressBar(0, 100);
     disableFiles();
+    var blob = null;
     if (store.files.length > 1)
       blob = await createZip()
     else
@@ -483,7 +488,9 @@ async function onUploadClick() {
     document.getElementById("MailButton").addEventListener("click", function() {
       sendAsMail(href);
     }, false);
-    showWizard("finish");
+    updateStore({
+      wizardStep: "finish",
+    });
   }
   catch(error) {
     console.error(error);
