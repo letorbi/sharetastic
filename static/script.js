@@ -74,7 +74,7 @@ function showWizard(step) {
 
 function showFiles(step) {
   var files = document.getElementById("Files");
-  selectClass(files, step, ["upload", "download"]);
+  selectClass(files, step, ["upload", "downloading", "downloaded"]);
 }
 
 function updateProgressBar(loaded, total) {
@@ -404,6 +404,7 @@ var states = {
     }
   },
   downloaded: {
+    handler: stateDownloaded,
     transitions: {
       hasHash: "downloading"
     }
@@ -451,7 +452,7 @@ function stateVisible() {
 async function stateDownloading() {
   try {
     updateProgressBar(0, 100);
-    showFiles("download");
+    showFiles("downloading");
     showWizard("progress");
     var blob = await downloadBlob(location.hash);
     if (await isNamedBlob(blob)) {
@@ -467,6 +468,11 @@ async function stateDownloading() {
     console.error(error);
     alert("Something went wrong while downloading the files.");
   }
+}
+
+function stateDownloaded() {
+  showFiles("downloaded");
+  showWizard("progress");
 }
 
 function statePrepared() {
