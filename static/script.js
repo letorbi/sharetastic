@@ -1,5 +1,3 @@
-var uploadFiles = new Array();
-
 // Polyfills
 
 // https://gist.github.com/hanayashiki/8dac237671343e7f0b15de617b0051bd
@@ -17,6 +15,27 @@ var uploadFiles = new Array();
     })
   }
 })();
+
+// Store
+
+var store = {
+  files: [],
+  hash: "",
+  progress: 0,
+  visible: false,
+  wizardStep: null,
+  filesStep: "upload"
+};
+
+var storeChangeListeners = [];
+
+function updateStore(changes) {
+  var previous = store;
+  store = Object.assign({}, store, changes);
+  for (var i = 0; i < storeChangeListeners.length; i++) {
+    storeChangeListeners[i](store, previous);
+  }
+}
 
 // DOM
 
@@ -65,22 +84,6 @@ function selectClass(node, cls, clsArr) {
     else
       node.classList.remove(clsArr[i]);
   }
-}
-
-function showWizard(step) {
-  var wizard = document.getElementById("Wizard");
-  selectClass(wizard, step, ["upload", "progress", "finish"]);
-}
-
-function showFiles(step) {
-  var files = document.getElementById("Files");
-  selectClass(files, step, ["upload", "downloading", "downloaded"]);
-}
-
-function updateProgressBar(loaded, total) {
-  var percent = loaded/total * 100;
-  document.getElementById("ProgressBar").value = percent;
-  document.getElementById("ProgressLabel").firstChild.innerHTML = percent.toFixed(2);
 }
 
 // ZIP
@@ -152,12 +155,12 @@ async function createZip() {
     oecdSize: 0
   };
 
-  for (var i = 0; i < uploadFiles.length; i++) {
+  for (var i = 0; i < store.files.length; i++) {
     var o = toLittleEndian(zip.lfhSize + zip.dataSize + zip.ddSize);
-    var n = new TextEncoder("utf-8").encode(uploadFiles[i].name);
+    var n = new TextEncoder("utf-8").encode(store.files[i].name);
     var l = toLittleEndian(n.length);
-    var t = toLittleEndian(generateMSTime(uploadFiles[i].lastModified));
-    var d = toLittleEndian(generateMSDate(uploadFiles[i].lastModified));
+    var t = toLittleEndian(generateMSTime(store.files[i].lastModified));
+    var d = toLittleEndian(generateMSDate(store.files[i].lastModified));
 
     var lfh = new Uint8Array(30 + n.length);
     lfh.set(new Uint8Array([
@@ -177,11 +180,11 @@ async function createZip() {
     zip.lfh.push(lfh);
     zip.lfhSize += lfh.length;
 
-    var data = new Uint8Array(await uploadFiles[i].arrayBuffer());
+    var data = new Uint8Array(await store.files[i].arrayBuffer());
     zip.data.push(data)
     zip.dataSize += data.length;
 
-    var s = toLittleEndian(uploadFiles[i].size);
+    var s = toLittleEndian(store.files[i].size);
     var c = toLittleEndian(generateCRC32(data, crcTable));
 
     var dd = new Uint8Array([
@@ -259,7 +262,7 @@ async function createZip() {
 }
 
 async function createNamedBlob() {
-  var n = new TextEncoder("utf-8").encode(uploadFiles[0].name);
+  var n = new TextEncoder("utf-8").encode(store.files[0].name);
   var l = toLittleEndian(n.length);
   var hdr = new Uint8Array(6 + n.length);
   hdr.set(new Uint8Array([
@@ -267,7 +270,7 @@ async function createNamedBlob() {
       l[0], l[1]              // file name length
   ]), 0);
   hdr.set(n, 6);
-  var data = new Uint8Array(await uploadFiles[0].arrayBuffer());
+  var data = new Uint8Array(await store.files[0].arrayBuffer());
   
   var bytes = new Uint8Array(hdr.length + data.length);
   bytes.set(hdr, 0);
@@ -299,7 +302,7 @@ function downloadBlob(id) {
     req.open("GET", "/files/" + id.substr(1), true);
     req.responseType = "blob";
     req.addEventListener("progress", function(evt) {
-      updateProgressBar(evt.loaded, evt.total);
+      updateStore({ progress: evt.loaded / evt.total });
     }, false);
     req.addEventListener("load", function() {
       if (req.status >= 400)
@@ -326,7 +329,7 @@ function uploadBlob(blob) {
     req.open("POST", "/files/", true);
     req.responseType = "text";
     req.upload.addEventListener("progress", function(evt) {
-      updateProgressBar(evt.loaded, evt.total);
+      updateStore({ progress: evt.loaded / evt.total });
     }, false);
     req.addEventListener("load", function() {
       if (req.status >= 400)
@@ -353,7 +356,7 @@ function checkAuth(callback) {
     req.open("POST", "/files/", true);
     req.responseType = "text";
     req.upload.addEventListener("progress", function(evt) {
-      updateProgressBar(evt.loaded, evt.total);
+      updateStore({ progress: evt.loaded / evt.total });
     }, false);
     req.addEventListener("load", function() {
       if (req.status >= 400)
@@ -374,151 +377,69 @@ function checkAuth(callback) {
   });
 }
 
-// state
+// store change listeners
 
-var state = "start";
-
-var states = {
-  start: {
-    transitions: {
-      hasHash: "hash",
-      isVisible: "visible"
+storeChangeListeners.push(async function(newStore, oldStore) {
+  if (newStore.hash && newStore.hash != oldStore.hash && newStore.visible) {
+    try {
+      updateStore({
+        progress: 0,
+        filesStep: "downloading",
+        wizardStep: "progress",
+      });
+      var blob = await downloadBlob(location.hash);
+      if (await isNamedBlob(blob)) {
+        var namedBlob  = await sliceNamedBlob(blob);
+        saveAs(namedBlob.data, namedBlob.name);
+      }
+      else {
+        saveAs(blob, "sharetastic.zip");
+      }
+      updateStore({ filesStep: "downloaded" });
     }
-  },
-  hash: {
-    transitions: {
-      isVisible: "downloading"
-    }
-  },
-  visible: {
-    handler: stateVisible,
-    transitions: {
-      hasHash: "downloading",
-      filesChanged: "prepared"
-    }
-  },
-  downloading: {
-    handler: stateDownloading,
-    transitions: {
-      downloadDone: "downloaded"
-    }
-  },
-  downloaded: {
-    handler: stateDownloaded,
-    transitions: {
-      hasHash: "downloading"
-    }
-  },
-  prepared: {
-    handler: statePrepared,
-    transitions: {
-      filesEmpty: "visible",
-      filesChanged: "prepared",
-      uploadClicked: "uploading"
-    }
-  },
-  uploading: {
-    handler: stateUploading,
-    transitions: {
-      uploadDone: "uploaded"
-    }
-  },
-  uploaded: {
-    handler: stateUploaded,
-    transitions: {
-      hasHash: "downloading"
+    catch(error) {
+      console.error(error);
+      alert("Something went wrong while downloading the files.");
     }
   }
-}
+});
 
-function sendMessage(msg, payload) {
-  if (!states[state].transitions[msg])
-    throw new Error("Invalid message '" + msg + "' for state '" + state + "'");
-  var newState = states[state].transitions[msg];
-  if (!states[newState])
-    throw new Error("Unknown state '" + state + "'");
-  state = newState;
-  if (states[newState].handler)
-    states[newState].handler(payload);
-}
-
-function stateVisible() {
-  var fileList = document.getElementById("FileList");
-  fileList.innerHTML = "";
-  showFiles("upload");
-  showWizard(null);
-}
-
-async function stateDownloading() {
-  try {
-    updateProgressBar(0, 100);
-    showFiles("downloading");
-    showWizard("progress");
-    var blob = await downloadBlob(location.hash);
-    if (await isNamedBlob(blob)) {
-      var namedBlob  = await sliceNamedBlob(blob);
-      saveAs(namedBlob.data, namedBlob.name);
-    }
-    else {
-      saveAs(blob, "sharetastic.zip");
-    }
-    sendMessage("downloadDone");
+storeChangeListeners.push(function(newStore, oldStore) {
+  if (newStore.files.length != oldStore.files.length) {
+    var fileList = document.getElementById("FileList");
+    fileList.innerHTML = "";
+    newStore.files.forEach(function(uploadFile, i) {
+      var filelistItem = document.createElement("button");
+      filelistItem.innerText = uploadFile.name;
+      filelistItem.addEventListener("click", function() {
+        files = [...store.files]
+        files.splice(i, 1);
+        updateStore({ files });
+      }, false);
+      fileList.appendChild(filelistItem);
+    });
+    if (newStore.files.length > 0)
+      updateStore({wizardStep: "upload"});
+    else
+      updateStore({wizardStep: null});
   }
-  catch(error) {
-    console.error(error);
-    alert("Something went wrong while downloading the files.");
-  }
-}
+});
 
-function stateDownloaded() {
-  showFiles("downloaded");
-  showWizard("progress");
-}
+storeChangeListeners.push(function(newStore, oldStore) {
+  var wizard = document.getElementById("Wizard");
+  selectClass(wizard, newStore.wizardStep, ["upload", "progress", "finish"]);
+});
 
-function statePrepared() {
-  var fileList = document.getElementById("FileList");
-  fileList.innerHTML = "";
-  uploadFiles.forEach(function(uploadFile, i) {
-    filelistItem = document.createElement("button");
-    filelistItem.innerText = uploadFile.name;
-    filelistItem.addEventListener("click", function() {
-      uploadFiles.splice(i, 1);
-      sendMessage(uploadFiles.length > 0 ? "filesChanged" : "filesEmpty");
-    }, false);
-    fileList.appendChild(filelistItem);
-  });
-  showFiles("upload");
-  showWizard("upload");
-}
+storeChangeListeners.push(function(newStore, oldStore) {
+  var files = document.getElementById("Files");
+  selectClass(files, newStore.filesStep, ["upload", "downloading", "downloaded"]);
+});
 
-async function stateUploading() {
-  try{
-    disableFiles();
-    updateProgressBar(0, 100);
-    showFiles("upload");
-    showWizard("progress");
-    var blob = uploadFiles.length > 1 ? await createZip() : await createNamedBlob();
-    var id = await checkAuth(uploadBlob.bind(null, blob));
-    sendMessage("uploadDone", id);
-  }
-  catch(error) {
-    console.error(error);
-    alert("Something went wrong while uploading the files.");
-  }
-}
-
-function stateUploaded(id) {
-  var href = location.href.slice(0, -1) + "#" + id;
-  document.getElementById("DownloadLink").innerText = href;
-  document.getElementById("CopyButton").addEventListener("click", function() {
-    copyToClipboard(href);
-  }, false);
-  document.getElementById("MailButton").addEventListener("click", function() {
-    sendAsMail(href);
-  }, false);
-  showFiles("upload");
-  showWizard("finish");
-}
+storeChangeListeners.push(function(newStore, oldStore) {
+  var percent = newStore.progress * 100;
+  document.getElementById("ProgressBar").value = percent;
+  document.getElementById("ProgressLabel").firstChild.innerHTML = percent.toFixed(2);
+});
 
 // events
 
@@ -528,25 +449,54 @@ function onDragOver(evt) {
 
 function onDrop(evt) {
   evt.preventDefault();
+  var files = [...store.files];
   for (var i = 0; i < evt.dataTransfer.items.length; i++) {
     if (evt.dataTransfer.items[i].kind === 'file')
-      uploadFiles.push(evt.dataTransfer.items[i].getAsFile());
+      files.push(evt.dataTransfer.items[i].getAsFile());
     else
       console.warn("dropped item[" + i + "] of kind '" + evt.dataTransfer.items[i].kind  + "' ignored");
   }
-  sendMessage("filesChanged");
+  updateStore({ files });
 }
 
 function onAddChange(evt) {
   evt.preventDefault();
+  var files = [...store.files];
   for (var i = 0; i < evt.target.files.length; i++) {
-    uploadFiles.push(evt.target.files[i]);
+    files.push(evt.target.files[i]);
   }
-  sendMessage("filesChanged");
+  updateStore({ files });
 }
 
-function onUploadClick() {
-  sendMessage("uploadClicked");
+async function onUploadClick() {
+  try{
+    updateStore({
+      progress: 0,
+      filesStep: "upload",
+      wizardStep: "progress",
+    });
+    disableFiles();
+    var blob = null;
+    if (store.files.length > 1)
+      blob = await createZip()
+    else
+      blob = await createNamedBlob();
+    var id =  await checkAuth(uploadBlob.bind(null, blob));
+    var href = location.href.slice(0, -1) + "#" + id;
+    document.getElementById("DownloadLink").innerText = href;
+    document.getElementById("CopyButton").addEventListener("click", function() {
+      copyToClipboard(href);
+    }, false);
+    document.getElementById("MailButton").addEventListener("click", function() {
+      sendAsMail(href);
+    }, false);
+    updateStore({ wizardStep: "finish" });
+  }
+  catch(error) {
+    console.error(error);
+    alert("Something went wrong while uploading the files.");
+    location.href = "/";
+  }
 }
 
 function onLoad() {
@@ -555,22 +505,25 @@ function onLoad() {
   dropNode.addEventListener("drop", onDrop, false);
   document.getElementById("AddInput").addEventListener("change", onAddChange, false);
   document.getElementById("UploadButton").addEventListener("click", onUploadClick, false);
-  if (location.hash)
-    sendMessage("hasHash");
-  if (document.visibilityState == "visible")
-    sendMessage("isVisible");
-}
-
-function onHashChange() {
-  if (location.hash)
-    sendMessage("hasHash");
+  updateStore({
+    hash: location.hash,
+    visible: document.visibilityState == "visible"
+  });
 }
 
 function onVisibilityChange() {
-  if (document.visibilityState == "visible")
-    sendMessage("isVisible");
-}
+  updateStore({
+    visible: document.visibilityState == "visible"
+  });
+};
+
+function onHashChange() {
+  updateStore({
+    hash: location.hash
+  });
+};
 
 window.addEventListener("load", onLoad, false);
+window.addEventListener("visibilitychange", onVisibilityChange, false);
 window.addEventListener("hashchange", onHashChange, false);
 window.addEventListener("visibilitychange", onVisibilityChange, false);
