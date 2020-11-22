@@ -394,7 +394,10 @@ html {
 #Files.upload>#Upload {
   display: block;
 }
-#Files.download>#Download {
+#Files.downloading>#Downloading {
+  display: block;
+}
+#Files.downloaded>#Downloaded {
   display: block;
 }
 

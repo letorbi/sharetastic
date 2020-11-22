@@ -74,22 +74,7 @@ function showWizard(step) {
 
 function showFiles(step) {
   var files = document.getElementById("Files");
-  selectClass(files, step, ["upload", "download"]);
-}
-
-function updateFileList() {
-  var fileList = document.getElementById("FileList");
-  fileList.innerHTML = "";
-  uploadFiles.forEach(function(uploadFile, i) {
-    filelistItem = document.createElement("button");
-    filelistItem.innerText = uploadFile.name;
-    filelistItem.addEventListener("click", function() {
-      uploadFiles.splice(i, 1);
-      updateFileList();
-    }, false);
-    fileList.appendChild(filelistItem);
-  });
-  showWizard(uploadFiles.length > 0 ? "upload" : null);
+  selectClass(files, step, ["upload", "downloading", "downloaded"]);
 }
 
 function updateProgressBar(loaded, total) {
@@ -389,6 +374,152 @@ function checkAuth(callback) {
   });
 }
 
+// state
+
+var state = "start";
+
+var states = {
+  start: {
+    transitions: {
+      hasHash: "hash",
+      isVisible: "visible"
+    }
+  },
+  hash: {
+    transitions: {
+      isVisible: "downloading"
+    }
+  },
+  visible: {
+    handler: stateVisible,
+    transitions: {
+      hasHash: "downloading",
+      filesChanged: "prepared"
+    }
+  },
+  downloading: {
+    handler: stateDownloading,
+    transitions: {
+      downloadDone: "downloaded"
+    }
+  },
+  downloaded: {
+    handler: stateDownloaded,
+    transitions: {
+      hasHash: "downloading"
+    }
+  },
+  prepared: {
+    handler: statePrepared,
+    transitions: {
+      filesEmpty: "visible",
+      filesChanged: "prepared",
+      uploadClicked: "uploading"
+    }
+  },
+  uploading: {
+    handler: stateUploading,
+    transitions: {
+      uploadDone: "uploaded"
+    }
+  },
+  uploaded: {
+    handler: stateUploaded,
+    transitions: {
+      hasHash: "downloading"
+    }
+  }
+}
+
+function sendMessage(msg, payload) {
+  if (!states[state].transitions[msg])
+    throw new Error("Invalid message '" + msg + "' for state '" + state + "'");
+  var newState = states[state].transitions[msg];
+  if (!states[newState])
+    throw new Error("Unknown state '" + state + "'");
+  state = newState;
+  if (states[newState].handler)
+    states[newState].handler(payload);
+}
+
+function stateVisible() {
+  var fileList = document.getElementById("FileList");
+  fileList.innerHTML = "";
+  showFiles("upload");
+  showWizard(null);
+}
+
+async function stateDownloading() {
+  try {
+    updateProgressBar(0, 100);
+    showFiles("downloading");
+    showWizard("progress");
+    var blob = await downloadBlob(location.hash);
+    if (await isNamedBlob(blob)) {
+      var namedBlob  = await sliceNamedBlob(blob);
+      saveAs(namedBlob.data, namedBlob.name);
+    }
+    else {
+      saveAs(blob, "sharetastic.zip");
+    }
+    sendMessage("downloadDone");
+  }
+  catch(error) {
+    console.error(error);
+    alert("Something went wrong while downloading the files.");
+  }
+}
+
+function stateDownloaded() {
+  showFiles("downloaded");
+  showWizard("progress");
+}
+
+function statePrepared() {
+  var fileList = document.getElementById("FileList");
+  fileList.innerHTML = "";
+  uploadFiles.forEach(function(uploadFile, i) {
+    filelistItem = document.createElement("button");
+    filelistItem.innerText = uploadFile.name;
+    filelistItem.addEventListener("click", function() {
+      uploadFiles.splice(i, 1);
+      sendMessage(uploadFiles.length > 0 ? "filesChanged" : "filesEmpty");
+    }, false);
+    fileList.appendChild(filelistItem);
+  });
+  showFiles("upload");
+  showWizard("upload");
+}
+
+async function stateUploading() {
+  try{
+    disableFiles();
+    updateProgressBar(0, 100);
+    showFiles("upload");
+    showWizard("progress");
+    var blob = uploadFiles.length > 1 ? await createZip() : await createNamedBlob();
+    var id = await checkAuth(uploadBlob.bind(null, blob));
+    sendMessage("uploadDone", id);
+  }
+  catch(error) {
+    console.error(error);
+    alert("Something went wrong while uploading the files.");
+  }
+}
+
+function stateUploaded(id) {
+  var href = location.href.slice(0, -1) + "#" + id;
+  document.getElementById("DownloadLink").innerText = href;
+  document.getElementById("CopyButton").addEventListener("click", function() {
+    copyToClipboard(href);
+  }, false);
+  document.getElementById("MailButton").addEventListener("click", function() {
+    sendAsMail(href);
+  }, false);
+  showFiles("upload");
+  showWizard("finish");
+}
+
 // events
 
 function onDragOver(evt) {
@@ -403,7 +534,7 @@ function onDrop(evt) {
     else
       console.warn("dropped item[" + i + "] of kind '" + evt.dataTransfer.items[i].kind  + "' ignored");
   }
-  updateFileList();
+  sendMessage("filesChanged");
 }
 
 function onAddChange(evt) {
@@ -411,36 +542,11 @@ function onAddChange(evt) {
   for (var i = 0; i < evt.target.files.length; i++) {
     uploadFiles.push(evt.target.files[i]);
   }
-  updateFileList();
+  sendMessage("filesChanged");
 }
 
-async function onUploadClick() {
-  try{
-    var blob = null;
-    var uploadButton = document.getElementById("UploadButton");
-    showWizard("progress");
-    updateProgressBar(0, 100);
-    disableFiles();
-    if (uploadFiles.length > 1)
-      blob = await createZip()
-    else
-      blob = await createNamedBlob();
-    var id =  await checkAuth(uploadBlob.bind(null, blob));
-    var href = location.href.slice(0, -1) + "#" + id;
-    document.getElementById("DownloadLink").innerText = href;
-    document.getElementById("CopyButton").addEventListener("click", function() {
-      copyToClipboard(href);
-    }, false);
-    document.getElementById("MailButton").addEventListener("click", function() {
-      sendAsMail(href);
-    }, false);
-    showWizard("finish");
-  }
-  catch(error) {
-    console.error(error);
-    alert("Something went wrong while uploading the files.");
-    location.href = "/";
-  }
+function onUploadClick() {
+  sendMessage("uploadClicked");
 }
 
 function onLoad() {
@@ -449,40 +555,22 @@ function onLoad() {
   dropNode.addEventListener("drop", onDrop, false);
   document.getElementById("AddInput").addEventListener("change", onAddChange, false);
   document.getElementById("UploadButton").addEventListener("click", onUploadClick, false);
-  onHashChange();
+  if (location.hash)
+    sendMessage("hasHash");
+  if (document.visibilityState == "visible")
+    sendMessage("isVisible");
 }
 
-document.addEventListener('visibilitychange', function() {
-  if (!document.getElementById("Files").classList.contains("download"))
-    onHashChange();
-});
+function onHashChange() {
+  if (location.hash)
+    sendMessage("hasHash");
+}
 
-async function onHashChange() {
-  if (location.hash && document.visibilityState == "visible") {
-    try {
-      showFiles("download");
-      showWizard("progress");
-      updateProgressBar(0, 100);
-      var blob = await downloadBlob(location.hash);
-      if (await isNamedBlob(blob)) {
-        var namedBlob  = await sliceNamedBlob(blob);
-        saveAs(namedBlob.data, namedBlob.name);
-      }
-      else {
-        saveAs(blob, "sharetastic.zip");
-      }
-      //setTimeout(function(){location.href = "/";}, 0);
-    }
-    catch(error) {
-      console.error(error);
-      alert("Something went wrong while downloading the files.");
-      //location.href = "/";
-    }
-  }
-  else {
-    showFiles("upload");
-  }
+function onVisibilityChange() {
+  if (document.visibilityState == "visible")
+    sendMessage("isVisible");
 }
 
 window.addEventListener("load", onLoad, false);
 window.addEventListener("hashchange", onHashChange, false);
+window.addEventListener("visibilitychange", onVisibilityChange, false);
