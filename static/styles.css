@@ -391,15 +391,7 @@ html {
 #Files>* {
   display: none;
 }
-#Files.upload>#Upload {
-  display: block;
-}
-#Files.downloading>#Downloading {
-  display: block;
-}
-#Files.downloaded>#Downloaded {
-  display: block;
-}
+
 
 #FileList button {
   margin: 0.5em;
@@ -432,13 +424,20 @@ html {
 #Wizard>* {
   display: none;
 }
-#Wizard.upload>#Upload {
-  display: block;
-}
-#Wizard.progress>#Progress {
-  display: block;
-}
-#Wizard.finish>#Finish {
+
+/* states */
+
+#HeaderSnippet.start #Files>#Upload,
+#HeaderSnippet.prepared #Files>#Upload,
+#HeaderSnippet.prepared #Wizard>#Upload,
+#HeaderSnippet.uploading #Files>#Upload,
+#HeaderSnippet.uploading #Wizard>#Progress,
+#HeaderSnippet.uploaded #Files>#Upload,
+#HeaderSnippet.uploaded #Wizard>#Finish,
+#HeaderSnippet.downloading #Files>#Downloading,
+#HeaderSnippet.downloading #Wizard>#Progress,
+#HeaderSnippet.downloaded #Files>#Downloaded,
+#HeaderSnippet.downloaded #Wizard>#Progress {
   display: block;
 }
 

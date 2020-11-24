@@ -23,8 +23,7 @@ var store = {
   hash: "",
   progress: 0,
   visible: false,
-  wizardStep: null,
-  filesStep: "upload"
+  state: "start"
 };
 
 var storeChangeListeners = [];
@@ -384,8 +383,7 @@ storeChangeListeners.push(async function(newStore, oldStore) {
     try {
       updateStore({
         progress: 0,
-        filesStep: "downloading",
-        wizardStep: "progress",
+        state: "downloading"
       });
       var blob = await downloadBlob(location.hash);
       if (await isNamedBlob(blob)) {
@@ -395,7 +393,7 @@ storeChangeListeners.push(async function(newStore, oldStore) {
       else {
         saveAs(blob, "sharetastic.zip");
       }
-      updateStore({ filesStep: "downloaded" });
+      updateStore({ state: "downloaded" });
     }
     catch(error) {
       console.error(error);
@@ -419,20 +417,15 @@ storeChangeListeners.push(function(newStore, oldStore) {
       fileList.appendChild(filelistItem);
     });
     if (newStore.files.length > 0)
-      updateStore({wizardStep: "upload"});
+      updateStore({ state: "prepared" });
     else
-      updateStore({wizardStep: null});
+      updateStore({ state: "start" });
   }
 });
 
 storeChangeListeners.push(function(newStore, oldStore) {
-  var wizard = document.getElementById("Wizard");
-  selectClass(wizard, newStore.wizardStep, ["upload", "progress", "finish"]);
-});
-
-storeChangeListeners.push(function(newStore, oldStore) {
-  var files = document.getElementById("Files");
-  selectClass(files, newStore.filesStep, ["upload", "downloading", "downloaded"]);
+  var element = document.getElementById("HeaderSnippet");
+  selectClass(element, newStore.state, ["start", "prepared", "uploading", "uploaded", "downloading", "downloaded"]);
 });
 
 storeChangeListeners.push(function(newStore, oldStore) {
@@ -472,8 +465,7 @@ async function onUploadClick() {
   try{
     updateStore({
       progress: 0,
-      filesStep: "upload",
-      wizardStep: "progress",
+      state: "uploading"
     });
     disableFiles();
     var blob = null;
@@ -490,7 +482,7 @@ async function onUploadClick() {
     document.getElementById("MailButton").addEventListener("click", function() {
       sendAsMail(href);
     }, false);
-    updateStore({ wizardStep: "finish" });
+    updateStore({ state: "uploaded" });
   }
   catch(error) {
     console.error(error);
