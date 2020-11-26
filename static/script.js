@@ -16,24 +16,47 @@
   }
 })();
 
-// Store
+// Model
 
-var store = {
-  files: [],
-  hash: "",
+const modelListeners = new Object();
+
+const model = new Proxy({
+  files: new Array(),
   progress: 0,
+  hash: null,
   visible: false,
-  state: "start"
-};
+  state: null
+}, {
+  set(target, prop, value) {
+    target[prop] = value;
+    if (modelListeners[prop])
+      modelListeners[prop].dispatchEvent(new Event('change'));
+    return target[prop];
+  },
+});
 
-var storeChangeListeners = [];
+addChangeListener = function(prop, func) {
+  if (!Object.prototype.hasOwnProperty.call(model, prop))
+    throw new Error("non-existent model property '" + prop + "'");
+  if (!modelListeners[prop])
+    modelListeners[prop] = document.createTextNode(null);
+  modelListeners[prop].addEventListener("change", func, false);
+}
 
-function updateStore(changes) {
-  var previous = store;
-  store = Object.assign({}, store, changes);
-  for (var i = 0; i < storeChangeListeners.length; i++) {
-    storeChangeListeners[i](store, previous);
-  }
+addChangeListeners = function(props, func) {
+  for (let i = 0; i < props.length; i++)
+    addChangeListener(props[i], func);
+}
+
+removeChangeListener = function(prop, func) {
+  if (!Object.prototype.hasOwnProperty.call(model, prop))
+    throw new Error("non-existent model property '" + prop + "'");
+  modelListeners[prop].removeEventListener("change", func);
+}
+
+removeChangeListeners = function(props, func) {
+  for (let i = 0; i < props.length; i++)
+    removeChangeListener(props[i], func);
 }
 
 // DOM
@@ -154,12 +177,12 @@ async function createZip() {
     oecdSize: 0
   };
 
-  for (var i = 0; i < store.files.length; i++) {
+  for (var i = 0; i < model.files.length; i++) {
     var o = toLittleEndian(zip.lfhSize + zip.dataSize + zip.ddSize);
-    var n = new TextEncoder("utf-8").encode(store.files[i].name);
+    var n = new TextEncoder("utf-8").encode(model.files[i].name);
     var l = toLittleEndian(n.length);
-    var t = toLittleEndian(generateMSTime(store.files[i].lastModified));
-    var d = toLittleEndian(generateMSDate(store.files[i].lastModified));
+    var t = toLittleEndian(generateMSTime(model.files[i].lastModified));
+    var d = toLittleEndian(generateMSDate(model.files[i].lastModified));
 
     var lfh = new Uint8Array(30 + n.length);
     lfh.set(new Uint8Array([
@@ -179,11 +202,11 @@ async function createZip() {
     zip.lfh.push(lfh);
     zip.lfhSize += lfh.length;
 
-    var data = new Uint8Array(await store.files[i].arrayBuffer());
+    var data = new Uint8Array(await model.files[i].arrayBuffer());
     zip.data.push(data)
     zip.dataSize += data.length;
 
-    var s = toLittleEndian(store.files[i].size);
+    var s = toLittleEndian(model.files[i].size);
     var c = toLittleEndian(generateCRC32(data, crcTable));
 
     var dd = new Uint8Array([
@@ -261,7 +284,7 @@ async function createZip() {
 }
 
 async function createNamedBlob() {
-  var n = new TextEncoder("utf-8").encode(store.files[0].name);
+  var n = new TextEncoder("utf-8").encode(model.files[0].name);
   var l = toLittleEndian(n.length);
   var hdr = new Uint8Array(6 + n.length);
   hdr.set(new Uint8Array([
@@ -269,7 +292,7 @@ async function createNamedBlob() {
       l[0], l[1]              // file name length
   ]), 0);
   hdr.set(n, 6);
-  var data = new Uint8Array(await store.files[0].arrayBuffer());
+  var data = new Uint8Array(await model.files[0].arrayBuffer());
   
   var bytes = new Uint8Array(hdr.length + data.length);
   bytes.set(hdr, 0);
@@ -301,7 +324,7 @@ function downloadBlob(id) {
     req.open("GET", "/files/" + id.substr(1), true);
     req.responseType = "blob";
     req.addEventListener("progress", function(evt) {
-      updateStore({ progress: evt.loaded / evt.total });
+      model.progress = evt.loaded / evt.total;
     }, false);
     req.addEventListener("load", function() {
       if (req.status >= 400)
@@ -328,7 +351,7 @@ function uploadBlob(blob) {
     req.open("POST", "/files/", true);
     req.responseType = "text";
     req.upload.addEventListener("progress", function(evt) {
-      updateStore({ progress: evt.loaded / evt.total });
+      model.progress = evt.loaded / evt.total;
     }, false);
     req.addEventListener("load", function() {
       if (req.status >= 400)
@@ -355,7 +378,7 @@ function checkAuth(callback) {
     req.open("POST", "/files/", true);
     req.responseType = "text";
     req.upload.addEventListener("progress", function(evt) {
-      updateStore({ progress: evt.loaded / evt.total });
+      model.progress = evt.loaded / evt.total;
     }, false);
     req.addEventListener("load", function() {
       if (req.status >= 400)
@@ -376,15 +399,13 @@ function checkAuth(callback) {
   });
 }
 
-// store change listeners
+// Change listeners
 
-storeChangeListeners.push(async function(newStore, oldStore) {
-  if (newStore.hash && newStore.hash != oldStore.hash && newStore.visible) {
+addChangeListeners(["hash", "visible"], async function() {
+  if (model.hash && model.visible) {
     try {
-      updateStore({
-        progress: 0,
-        state: "downloading"
-      });
+      model.progress = 0;
+      model.state = "downloading";
       var blob = await downloadBlob(location.hash);
       if (await isNamedBlob(blob)) {
         var namedBlob  = await sliceNamedBlob(blob);
@@ -393,7 +414,7 @@ storeChangeListeners.push(async function(newStore, oldStore) {
       else {
         saveAs(blob, "sharetastic.zip");
       }
-      updateStore({ state: "downloaded" });
+      model.state = "downloaded";
     }
     catch(error) {
       console.error(error);
@@ -402,39 +423,37 @@ storeChangeListeners.push(async function(newStore, oldStore) {
   }
 });
 
-storeChangeListeners.push(function(newStore, oldStore) {
-  if (newStore.files.length != oldStore.files.length) {
-    var fileList = document.getElementById("FileList");
-    fileList.innerHTML = "";
-    newStore.files.forEach(function(uploadFile, i) {
-      var filelistItem = document.createElement("button");
-      filelistItem.innerText = uploadFile.name;
-      filelistItem.addEventListener("click", function() {
-        files = [...store.files]
-        files.splice(i, 1);
-        updateStore({ files });
-      }, false);
-      fileList.appendChild(filelistItem);
-    });
-    if (newStore.files.length > 0)
-      updateStore({ state: "prepared" });
-    else
-      updateStore({ state: "start" });
-  }
+addChangeListener("files", function() {
+  var fileList = document.getElementById("FileList");
+  fileList.innerHTML = "";
+  model.files.forEach(function(uploadFile, i) {
+    var filelistItem = document.createElement("button");
+    filelistItem.innerText = uploadFile.name;
+    filelistItem.addEventListener("click", function() {
+      files = [...model.files]
+      files.splice(i, 1);
+      model.files = files;
+    }, false);
+    fileList.appendChild(filelistItem);
+  });
+  if (model.files.length > 0)
+    model.state = "prepared";
+  else
+    model.state = "start";
 });
 
-storeChangeListeners.push(function(newStore, oldStore) {
+addChangeListener("state", function() {
   var element = document.getElementById("HeaderSnippet");
-  selectClass(element, newStore.state, ["start", "prepared", "uploading", "uploaded", "downloading", "downloaded"]);
+  selectClass(element, model.state, ["start", "prepared", "uploading", "uploaded", "downloading", "downloaded"]);
 });
 
-storeChangeListeners.push(function(newStore, oldStore) {
-  var percent = newStore.progress * 100;
+addChangeListener("progress", function() {
+  var percent = model.progress * 100;
   document.getElementById("ProgressBar").value = percent;
   document.getElementById("ProgressLabel").firstChild.innerHTML = percent.toFixed(2);
 });
 
-// events
+// Events
 
 function onDragOver(evt) {
   evt.preventDefault();
@@ -442,34 +461,32 @@ function onDragOver(evt) {
 
 function onDrop(evt) {
   evt.preventDefault();
-  var files = [...store.files];
+  var files = [...model.files];
   for (var i = 0; i < evt.dataTransfer.items.length; i++) {
     if (evt.dataTransfer.items[i].kind === 'file')
       files.push(evt.dataTransfer.items[i].getAsFile());
     else
       console.warn("dropped item[" + i + "] of kind '" + evt.dataTransfer.items[i].kind  + "' ignored");
   }
-  updateStore({ files });
+  model.files = files;
 }
 
 function onAddChange(evt) {
   evt.preventDefault();
-  var files = [...store.files];
+  var files = [...model.files];
   for (var i = 0; i < evt.target.files.length; i++) {
     files.push(evt.target.files[i]);
   }
-  updateStore({ files });
+  model.files = files;
 }
 
 async function onUploadClick() {
   try{
-    updateStore({
-      progress: 0,
-      state: "uploading"
-    });
+    model.progress = 0;
+    model.state = "uploading";
     disableFiles();
     var blob = null;
-    if (store.files.length > 1)
+    if (model.files.length > 1)
       blob = await createZip()
     else
       blob = await createNamedBlob();
@@ -482,7 +499,7 @@ async function onUploadClick() {
     document.getElementById("MailButton").addEventListener("click", function() {
       sendAsMail(href);
     }, false);
-    updateStore({ state: "uploaded" });
+    model.state = "uploaded";
   }
   catch(error) {
     console.error(error);
@@ -497,22 +514,17 @@ function onLoad() {
   dropNode.addEventListener("drop", onDrop, false);
   document.getElementById("AddInput").addEventListener("change", onAddChange, false);
   document.getElementById("UploadButton").addEventListener("click", onUploadClick, false);
-  updateStore({
-    hash: location.hash,
-    visible: document.visibilityState == "visible"
-  });
+  model.hash = location.hash;
+  model.visible = document.visibilityState == "visible";
+  model.state = "start";
 }
 
 function onVisibilityChange() {
-  updateStore({
-    visible: document.visibilityState == "visible"
-  });
+  model.visible = document.visibilityState == "visible";
 };
 
 function onHashChange() {
-  updateStore({
-    hash: location.hash
-  });
+  model.hash = location.hash;
 };
 
 window.addEventListener("load", onLoad, false);
