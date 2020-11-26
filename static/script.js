@@ -1,3 +1,5 @@
+"use strict";
+
 // polyfills
 
 // https://gist.github.com/hanayashiki/8dac237671343e7f0b15de617b0051bd
@@ -15,52 +17,6 @@
     })
   }
 })();
-
-// model
-
-const modelListeners = new Object();
-
-const model = new Proxy({
-  blob: null,
-  error: null,
-  files: new Array(),
-  hash: null,
-  id: null,
-  progress: 0,
-  state: null,
-  visible: false
-}, {
-  set(target, prop, value) {
-    target[prop] = value;
-    if (modelListeners[prop])
-      modelListeners[prop].dispatchEvent(new Event('change'));
-    return target[prop];
-  },
-});
-
-addChangeListener = function(prop, func) {
-  if (!Object.prototype.hasOwnProperty.call(model, prop))
-    throw new Error("non-existent model property '" + prop + "'");
-  if (!modelListeners[prop])
-    modelListeners[prop] = document.createTextNode(null);
-  modelListeners[prop].addEventListener("change", func, false);
-}
-
-addChangeListeners = function(props, func) {
-  for (let i = 0; i < props.length; i++)
-    addChangeListener(props[i], func);
-}
-
-removeChangeListener = function(prop, func) {
-  if (!Object.prototype.hasOwnProperty.call(model, prop))
-    throw new Error("non-existent model property '" + prop + "'");
-  modelListeners[prop].removeEventListener("change", func);
-}
-
-removeChangeListeners = function(props, func) {
-  for (let i = 0; i < props.length; i++)
-    removeChangeListener(props[i], func);
-}
 
 // DOM
 
@@ -168,7 +124,7 @@ function toLittleEndian(num) {
 
 async function createZip(files) {
   var crcTable = makeCRCTable();
-  
+
   var zip = {
     lfh: new Array(),
     lfhSize: 0,
@@ -222,7 +178,7 @@ async function createZip(files) {
     ]);
     zip.dd.push(dd);
     zip.ddSize += dd.length;
-  
+
     var cdfh = new Uint8Array(46 + n.length);
     cdfh.set(new Uint8Array([
       0x50, 0x4b, 0x01, 0x02, // signature
@@ -264,10 +220,10 @@ async function createZip(files) {
     0x00, 0x00              // comment length
   ]);
   zip.oecdSize = zip.oecd.length;
- 
+
   bytes = new Uint8Array(zip.lfhSize + zip.dataSize + zip.ddSize + zip.cdfhSize + zip.oecdSize);
   offset = 0;
- 
+
   for (var i = 0; i < zip.data.length; i++) {
     bytes.set(zip.lfh[i], offset);
     offset += zip.lfh[i].length;
@@ -281,7 +237,7 @@ async function createZip(files) {
     bytes.set(zip.cdfh[i], offset);
     offset += zip.cdfh[i].length;
   }
-  
+
   bytes.set(zip.oecd, offset);
   offset += zip.oecd.length;
 
@@ -300,11 +256,11 @@ async function createNamedBlob(file) {
   ]), 0);
   hdr.set(n, 6);
   var data = new Uint8Array(await file.arrayBuffer());
-  
+
   var bytes = new Uint8Array(hdr.length + data.length);
   bytes.set(hdr, 0);
   bytes.set(data, hdr.length);
-  
+
   return new Blob([bytes]);
 }
 
@@ -320,6 +276,52 @@ async function sliceNamedBlob(blob) {
     name: n,
     data: blob.slice(6+l)
   };
+}
+
+// model
+
+const modelListeners = new Object();
+
+const model = new Proxy({
+  blob: null,
+  error: null,
+  files: new Array(),
+  hash: null,
+  id: null,
+  progress: 0,
+  state: null,
+  visible: false
+}, {
+  set(target, prop, value) {
+    target[prop] = value;
+    if (modelListeners[prop])
+      modelListeners[prop].dispatchEvent(new Event('change'));
+    return true;
+  }
+});
+
+function addChangeListener(prop, func) {
+  if (!Object.prototype.hasOwnProperty.call(model, prop))
+    throw new Error("non-existent model property '" + prop + "'");
+  if (!modelListeners[prop])
+    modelListeners[prop] = document.createTextNode(null);
+  modelListeners[prop].addEventListener("change", func, false);
+}
+
+function addChangeListeners(props, func) {
+  for (let i = 0; i < props.length; i++)
+    addChangeListener(props[i], func);
+}
+
+function removeChangeListener(prop, func) {
+  if (!Object.prototype.hasOwnProperty.call(model, prop))
+    throw new Error("non-existent model property '" + prop + "'");
+  modelListeners[prop].removeEventListener("change", func);
+}
+
+function removeChangeListeners(props, func) {
+  for (let i = 0; i < props.length; i++)
+    removeChangeListener(props[i], func);
 }
 
 // network
@@ -397,7 +399,7 @@ addChangeListener("files", function() {
     var filelistItem = document.createElement("button");
     filelistItem.innerText = uploadFile.name;
     filelistItem.addEventListener("click", function() {
-      files = [...model.files]
+      var files = [...model.files];
       files.splice(i, 1);
       model.files = files;
     }, false);
@@ -480,21 +482,14 @@ function onAddChange(evt) {
 }
 
 async function onUploadClick() {
-  try{
-    model.progress = 0;
-    model.state = "uploading";
-    var blob = null;
-    if (model.files.length > 1)
-      blob = await createZip(model.files)
-    else
-      blob = await createNamedBlob(model.files[0]);
-    uploadBlob(blob);
-  }
-  catch(error) {
-    console.error(error);
-    alert("Something went wrong while uploading the files.");
-    location.href = "/";
-  }
+  model.progress = 0;
+  model.state = "uploading";
+  var blob = null;
+  if (model.files.length > 1)
+    blob = await createZip(model.files)
+  else
+    blob = await createNamedBlob(model.files[0]);
+  uploadBlob(blob);
 }
 
 function onLoad() {
@@ -519,4 +514,3 @@ function onHashChange() {
 window.addEventListener("load", onLoad, false);
 window.addEventListener("visibilitychange", onVisibilityChange, false);
 window.addEventListener("hashchange", onHashChange, false);
-window.addEventListener("visibilitychange", onVisibilityChange, false);
