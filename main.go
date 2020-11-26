@@ -42,8 +42,8 @@ func main() {
   filedir = usr.HomeDir + "/.sharetastic/files";
 
   if len(os.Args) >= 2 {
-    if os.Args[1] == "--password" {
-      auth = "Basic " + base64.StdEncoding.EncodeToString([]byte(":" + os.Args[2]))
+    if os.Args[1] == "--auth" {
+      auth = "Basic " + base64.StdEncoding.EncodeToString([]byte(os.Args[2]))
     } else {
       log.Panic("Invalid argument: " + os.Args[1]);
     }
