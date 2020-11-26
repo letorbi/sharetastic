@@ -1,4 +1,4 @@
-// Polyfills
+// polyfills
 
 // https://gist.github.com/hanayashiki/8dac237671343e7f0b15de617b0051bd
 (function () {
@@ -16,7 +16,7 @@
   }
 })();
 
-// Model
+// model
 
 const modelListeners = new Object();
 
@@ -286,8 +286,10 @@ async function createZip() {
   return new Blob([bytes]);
 }
 
-async function createNamedBlob() {
-  var n = new TextEncoder("utf-8").encode(model.files[0].name);
+// named blob
+
+async function createNamedBlob(file) {
+  var n = new TextEncoder("utf-8").encode(file.name);
   var l = toLittleEndian(n.length);
   var hdr = new Uint8Array(6 + n.length);
   hdr.set(new Uint8Array([
@@ -295,7 +297,7 @@ async function createNamedBlob() {
       l[0], l[1]              // file name length
   ]), 0);
   hdr.set(n, 6);
-  var data = new Uint8Array(await model.files[0].arrayBuffer());
+  var data = new Uint8Array(await file.arrayBuffer());
   
   var bytes = new Uint8Array(hdr.length + data.length);
   bytes.set(hdr, 0);
@@ -306,7 +308,6 @@ async function createNamedBlob() {
 
 async function isNamedBlob(blob) {
   var s = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
-  console.log(s);
   return s[0] == 0xFF && s[1] == 0xFF && s[2] == 0xFF && s[3] == 0xFF;
 }
 
@@ -377,7 +378,7 @@ function uploadBlob(blob) {
   req.send(blob);
 }
 
-// Change listeners
+// change listeners
 
 addChangeListeners(["hash", "visible"], async function() {
   if (model.hash && model.visible) {
@@ -443,7 +444,7 @@ addChangeListener("id", function() {
   }, false);
 });
 
-// Events
+// events
 
 function onDragOver(evt) {
   evt.preventDefault();
@@ -479,7 +480,7 @@ async function onUploadClick() {
     if (model.files.length > 1)
       blob = await createZip()
     else
-      blob = await createNamedBlob();
+      blob = await createNamedBlob(model.files[0]);
     uploadBlob(blob);
   }
   catch(error) {
