@@ -21,11 +21,14 @@
 const modelListeners = new Object();
 
 const model = new Proxy({
+  blob: null,
+  error: null,
   files: new Array(),
-  progress: 0,
   hash: null,
-  visible: false,
-  state: null
+  id: null,
+  progress: 0,
+  state: null,
+  visible: false
 }, {
   set(target, prop, value) {
     target[prop] = value;
@@ -319,107 +322,89 @@ async function sliceNamedBlob(blob) {
 // network
 
 function downloadBlob(id) {
-  return new Promise(function(resolve, reject) {
-    var req = new XMLHttpRequest();
-    req.open("GET", "/files/" + id.substr(1), true);
-    req.responseType = "blob";
-    req.addEventListener("progress", function(evt) {
-      model.progress = evt.loaded / evt.total;
-    }, false);
-    req.addEventListener("load", function() {
-      if (req.status >= 400)
-        reject(req.status);
-      else
-        resolve(req.response);
-    }, false);
-    req.addEventListener("abort", function(evt) {
-      reject(new Error("XMLHttpRequest abort"));
-    }, false);
-    req.addEventListener("error", function(evt) {
-      reject(new Error("XMLHttpRequest error"));
-    }, false);
-    req.addEventListener("timeout", function(evt) {
-      reject(new Error("XMLHttpRequest timeout"));
-    }, false);
-    req.send(null);
-  });
+  var req = new XMLHttpRequest();
+  req.open("GET", "/files/" + id.substr(1), true);
+  req.responseType = "blob";
+  req.addEventListener("progress", function(evt) {
+    model.progress = evt.loaded / evt.total;
+  }, false);
+  req.addEventListener("load", function() {
+    if (req.status >= 400) {
+      model.error = new Error("XMLHttpRequest status " + req.status);
+    }
+    else {
+      model.blob = req.response;
+      model.state = "downloaded";
+    }
+  }, false);
+  req.addEventListener("abort", function(evt) {
+    model.error = new Error("XMLHttpRequest abort");
+  }, false);
+  req.addEventListener("error", function(evt) {
+    model.error = new Error("XMLHttpRequest error");
+  }, false);
+  req.addEventListener("timeout", function(evt) {
+    model.error = new Error("XMLHttpRequest timeout");
+  }, false);
+  req.send();
 }
 
 function uploadBlob(blob) {
-  return new Promise(function(resolve, reject) {
-    var req = new XMLHttpRequest();
-    req.open("POST", "/files/", true);
-    req.responseType = "text";
-    req.upload.addEventListener("progress", function(evt) {
-      model.progress = evt.loaded / evt.total;
-    }, false);
-    req.addEventListener("load", function() {
-      if (req.status >= 400)
-        reject(req.status);
-      else
-        resolve(req.response);
-    }, false);
-    req.addEventListener("abort", function(evt) {
-      reject(new Error("XMLHttpRequest abort"));
-    }, false);
-    req.addEventListener("error", function(evt) {
-      reject(new Error("XMLHttpRequest error"));
-    }, false);
-    req.addEventListener("timeout", function(evt) {
-      reject(new Error("XMLHttpRequest timeout"));
-    }, false);
-    req.send(blob);
-  });
+  var req = new XMLHttpRequest();
+  req.open("POST", "/files/", true);
+  req.responseType = "text";
+  req.upload.addEventListener("progress", function(evt) {
+    model.progress = evt.loaded / evt.total;
+  }, false);
+  req.addEventListener("load", function() {
+    if (req.status >= 400) {
+      model.error = new Error("XMLHttpRequest status " + req.status);
+    }
+    else {
+      model.id = req.response;
+      model.state = "uploaded";
+    }
+  }, false);
+  req.addEventListener("abort", function(evt) {
+    model.error = new Error("XMLHttpRequest abort");
+  }, false);
+  req.addEventListener("error", function(evt) {
+    model.error = new Error("XMLHttpRequest error");
+  }, false);
+  req.addEventListener("timeout", function(evt) {
+    model.error = new Error("XMLHttpRequest timeout");
+  }, false);
+  req.send(blob);
 }
 
 function checkAuth(callback) {
-  return new Promise(function(resolve, reject) {
-    var req = new XMLHttpRequest();
-    req.open("POST", "/files/", true);
-    req.responseType = "text";
-    req.upload.addEventListener("progress", function(evt) {
-      model.progress = evt.loaded / evt.total;
-    }, false);
-    req.addEventListener("load", function() {
-      if (req.status >= 400)
-        reject(req.status);
-      else
-        resolve(callback());
-    }, false);
-    req.addEventListener("abort", function(evt) {
-      reject(new Error("XMLHttpRequest abort"));
-    }, false);
-    req.addEventListener("error", function(evt) {
-      reject(new Error("XMLHttpRequest error"));
-    }, false);
-    req.addEventListener("timeout", function(evt) {
-      reject(new Error("XMLHttpRequest timeout"));
-    }, false);
-    req.send();
-  });
+  var req = new XMLHttpRequest();
+  req.open("POST", "/files/", true);
+  req.addEventListener("load", function() {
+    if (req.status >= 400)
+      model.error = new Error("XMLHttpRequest status " + req.status);
+    else
+      callback();
+  }, false);
+  req.addEventListener("abort", function(evt) {
+    model.error = new Error("XMLHttpRequest abort");
+  }, false);
+  req.addEventListener("error", function(evt) {
+    model.error = new Error("XMLHttpRequest error");
+  }, false);
+  req.addEventListener("timeout", function(evt) {
+    model.error = new Error("XMLHttpRequest timeout");
+  }, false);
+  req.send();
 }
 
 // Change listeners
 
 addChangeListeners(["hash", "visible"], async function() {
   if (model.hash && model.visible) {
-    try {
-      model.progress = 0;
-      model.state = "downloading";
-      var blob = await downloadBlob(location.hash);
-      if (await isNamedBlob(blob)) {
-        var namedBlob  = await sliceNamedBlob(blob);
-        saveAs(namedBlob.data, namedBlob.name);
-      }
-      else {
-        saveAs(blob, "sharetastic.zip");
-      }
-      model.state = "downloaded";
-    }
-    catch(error) {
-      console.error(error);
-      alert("Something went wrong while downloading the files.");
-    }
+    model.progress = 0;
+    model.state = "downloading";
+    downloadBlob(location.hash);
   }
 });
 
@@ -451,6 +436,32 @@ addChangeListener("progress", function() {
   var percent = model.progress * 100;
   document.getElementById("ProgressBar").value = percent;
   document.getElementById("ProgressLabel").firstChild.innerHTML = percent.toFixed(2);
+});
+
+addChangeListener("error", function() {
+  console.error(model.error);
+  alert("Something went wrong while " + model.state + " the files.");
+});
+
+addChangeListener("blob", async function() {
+  if (await isNamedBlob(model.blob)) {
+    var namedBlob  = await sliceNamedBlob(model.blob);
+    saveAs(namedBlob.data, namedBlob.name);
+  }
+  else {
+    saveAs(model.blob, "sharetastic.zip");
+  }
+});
+
+addChangeListener("id", function() {
+  var href = location.href.slice(0, -1) + "#" + model.id;
+  document.getElementById("DownloadLink").innerText = href;
+  document.getElementById("CopyButton").addEventListener("click", function() {
+    copyToClipboard(href);
+  }, false);
+  document.getElementById("MailButton").addEventListener("click", function() {
+    sendAsMail(href);
+  }, false);
 });
 
 // Events
@@ -490,16 +501,7 @@ async function onUploadClick() {
       blob = await createZip()
     else
       blob = await createNamedBlob();
-    var id =  await checkAuth(uploadBlob.bind(null, blob));
-    var href = location.href.slice(0, -1) + "#" + id;
-    document.getElementById("DownloadLink").innerText = href;
-    document.getElementById("CopyButton").addEventListener("click", function() {
-      copyToClipboard(href);
-    }, false);
-    document.getElementById("MailButton").addEventListener("click", function() {
-      sendAsMail(href);
-    }, false);
-    model.state = "uploaded";
+    checkAuth(uploadBlob.bind(null, blob));
   }
   catch(error) {
     console.error(error);
@@ -514,9 +516,9 @@ function onLoad() {
   dropNode.addEventListener("drop", onDrop, false);
   document.getElementById("AddInput").addEventListener("change", onAddChange, false);
   document.getElementById("UploadButton").addEventListener("click", onUploadClick, false);
+  model.state = "start";
   model.hash = location.hash;
   model.visible = document.visibilityState == "visible";
-  model.state = "start";
 }
 
 function onVisibilityChange() {
