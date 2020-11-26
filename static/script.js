@@ -164,7 +164,7 @@ function toLittleEndian(num) {
   ]);
 }
 
-async function createZip() {
+async function createZip(files) {
   var crcTable = makeCRCTable();
   
   var zip = {
@@ -180,12 +180,12 @@ async function createZip() {
     oecdSize: 0
   };
 
-  for (var i = 0; i < model.files.length; i++) {
+  for (var i = 0; i < files.length; i++) {
     var o = toLittleEndian(zip.lfhSize + zip.dataSize + zip.ddSize);
-    var n = new TextEncoder("utf-8").encode(model.files[i].name);
+    var n = new TextEncoder("utf-8").encode(files[i].name);
     var l = toLittleEndian(n.length);
-    var t = toLittleEndian(generateMSTime(model.files[i].lastModified));
-    var d = toLittleEndian(generateMSDate(model.files[i].lastModified));
+    var t = toLittleEndian(generateMSTime(files[i].lastModified));
+    var d = toLittleEndian(generateMSDate(files[i].lastModified));
 
     var lfh = new Uint8Array(30 + n.length);
     lfh.set(new Uint8Array([
@@ -205,11 +205,11 @@ async function createZip() {
     zip.lfh.push(lfh);
     zip.lfhSize += lfh.length;
 
-    var data = new Uint8Array(await model.files[i].arrayBuffer());
+    var data = new Uint8Array(await files[i].arrayBuffer());
     zip.data.push(data)
     zip.dataSize += data.length;
 
-    var s = toLittleEndian(model.files[i].size);
+    var s = toLittleEndian(files[i].size);
     var c = toLittleEndian(generateCRC32(data, crcTable));
 
     var dd = new Uint8Array([
@@ -478,7 +478,7 @@ async function onUploadClick() {
     disableFiles();
     var blob = null;
     if (model.files.length > 1)
-      blob = await createZip()
+      blob = await createZip(model.files)
     else
       blob = await createNamedBlob(model.files[0]);
     uploadBlob(blob);
