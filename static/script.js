@@ -92,14 +92,16 @@ function copyToClipboard(href) {
   document.body.removeChild(field);
 }
 
-function disableFiles() {
-  var files = document.getElementById("Files");
-  var buttons = files.getElementsByTagName("button");
-  var labels = files.getElementsByTagName("label");
-  for (var i=0; i<buttons.length; i++)
-    buttons[i].disabled = true;
-  for (var i=0; i<labels.length; i++)
-    labels[i].classList.add("disabled");
+function setFormActive(form, active) {
+  var labels = form.getElementsByTagName("label");
+  for (let i = 0; i < form.elements.length; i++)
+    form.elements[i].disabled = !active;
+  for (let i = 0; i < labels.length; i++) {
+    if (active)
+      labels[i].classList.remove("disabled");
+    else
+      labels[i].classList.add("disabled");
+  }
 }
 
 function selectClass(node, cls, clsArr) {
@@ -410,6 +412,12 @@ addChangeListener("files", function() {
 addChangeListener("state", function() {
   var element = document.getElementById("HeaderSnippet");
   selectClass(element, model.state, ["start", "prepared", "uploading", "uploaded", "downloading", "downloaded"]);
+
+  var form = document.getElementById("Upload");
+  if (model.state == "uploading" || model.state == "uploaded")
+    setFormActive(form, false);
+  else
+    setFormActive(form, true);
 });
 
 addChangeListener("progress", function() {
@@ -475,7 +483,6 @@ async function onUploadClick() {
   try{
     model.progress = 0;
     model.state = "uploading";
-    disableFiles();
     var blob = null;
     if (model.files.length > 1)
       blob = await createZip(model.files)
