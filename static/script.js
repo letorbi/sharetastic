@@ -300,28 +300,24 @@ const model = new Proxy({
   }
 });
 
-function addChangeListener(prop, func) {
-  if (!Object.prototype.hasOwnProperty.call(model, prop))
-    throw new Error("non-existent model property '" + prop + "'");
-  if (!modelListeners[prop])
-    modelListeners[prop] = document.createTextNode(null);
-  modelListeners[prop].addEventListener("change", func, false);
+function addChangeListener(/*prop..., func*/) {
+  var last = arguments.length - 1;
+  for (let i = 0; i < last; i++) {
+    if (!Object.prototype.hasOwnProperty.call(model, arguments[i]))
+      throw new Error("non-existent model property '" + arguments[i] + "'");
+    if (!modelListeners[arguments[i]])
+      modelListeners[arguments[i]] = document.createTextNode(null);
+    modelListeners[arguments[i]].addEventListener("change", arguments[last], false);
+  }
 }
 
-function addChangeListeners(props, func) {
-  for (let i = 0; i < props.length; i++)
-    addChangeListener(props[i], func);
-}
-
-function removeChangeListener(prop, func) {
-  if (!Object.prototype.hasOwnProperty.call(model, prop))
-    throw new Error("non-existent model property '" + prop + "'");
-  modelListeners[prop].removeEventListener("change", func);
-}
-
-function removeChangeListeners(props, func) {
-  for (let i = 0; i < props.length; i++)
-    removeChangeListener(props[i], func);
+function removeChangeListener(/*prop..., func*/) {
+  var last = arguments.length - 1;
+  for (let i = 0; i < last; i++) {
+    if (!Object.prototype.hasOwnProperty.call(model, arguments[i]))
+      throw new Error("non-existent model property '" + arguments[i] + "'");
+    modelListeners[arguments[i]].removeEventListener("change", arguments[last], false);
+  }
 }
 
 // network
@@ -384,7 +380,7 @@ function uploadBlob(blob) {
 
 // change listeners
 
-addChangeListeners(["hash", "visible"], async function() {
+addChangeListener("hash", "visible", async function() {
   if (model.hash && model.visible) {
     model.progress = 0;
     model.state = "downloading";
