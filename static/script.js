@@ -377,27 +377,6 @@ function uploadBlob(blob) {
   req.send(blob);
 }
 
-function checkAuth(callback) {
-  var req = new XMLHttpRequest();
-  req.open("POST", "/files/", true);
-  req.addEventListener("load", function() {
-    if (req.status >= 400)
-      model.error = new Error("XMLHttpRequest status " + req.status);
-    else
-      callback();
-  }, false);
-  req.addEventListener("abort", function(evt) {
-    model.error = new Error("XMLHttpRequest abort");
-  }, false);
-  req.addEventListener("error", function(evt) {
-    model.error = new Error("XMLHttpRequest error");
-  }, false);
-  req.addEventListener("timeout", function(evt) {
-    model.error = new Error("XMLHttpRequest timeout");
-  }, false);
-  req.send();
-}
-
 // Change listeners
 
 addChangeListeners(["hash", "visible"], async function() {
@@ -501,7 +480,7 @@ async function onUploadClick() {
       blob = await createZip()
     else
       blob = await createNamedBlob();
-    checkAuth(uploadBlob.bind(null, blob));
+    uploadBlob(blob);
   }
   catch(error) {
     console.error(error);
