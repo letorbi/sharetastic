@@ -1,4 +1,6 @@
-// Polyfills
+"use strict";
+
+// polyfills
 
 // https://gist.github.com/hanayashiki/8dac237671343e7f0b15de617b0051bd
 (function () {
@@ -15,26 +17,6 @@
     })
   }
 })();
-
-// Store
-
-var store = {
-  files: [],
-  hash: "",
-  progress: 0,
-  visible: false,
-  state: "start"
-};
-
-var storeChangeListeners = [];
-
-function updateStore(changes) {
-  var previous = store;
-  store = Object.assign({}, store, changes);
-  for (var i = 0; i < storeChangeListeners.length; i++) {
-    storeChangeListeners[i](store, previous);
-  }
-}
 
 // DOM
 
@@ -66,14 +48,16 @@ function copyToClipboard(href) {
   document.body.removeChild(field);
 }
 
-function disableFiles() {
-  var files = document.getElementById("Files");
-  var buttons = files.getElementsByTagName("button");
-  var labels = files.getElementsByTagName("label");
-  for (var i=0; i<buttons.length; i++)
-    buttons[i].disabled = true;
-  for (var i=0; i<labels.length; i++)
-    labels[i].classList.add("disabled");
+function setFormActive(form, active) {
+  var labels = form.getElementsByTagName("label");
+  for (let i = 0; i < form.elements.length; i++)
+    form.elements[i].disabled = !active;
+  for (let i = 0; i < labels.length; i++) {
+    if (active)
+      labels[i].classList.remove("disabled");
+    else
+      labels[i].classList.add("disabled");
+  }
 }
 
 function selectClass(node, cls, clsArr) {
@@ -138,9 +122,9 @@ function toLittleEndian(num) {
   ]);
 }
 
-async function createZip() {
+async function createZip(files) {
   var crcTable = makeCRCTable();
-  
+
   var zip = {
     lfh: new Array(),
     lfhSize: 0,
@@ -154,12 +138,12 @@ async function createZip() {
     oecdSize: 0
   };
 
-  for (var i = 0; i < store.files.length; i++) {
+  for (var i = 0; i < files.length; i++) {
     var o = toLittleEndian(zip.lfhSize + zip.dataSize + zip.ddSize);
-    var n = new TextEncoder("utf-8").encode(store.files[i].name);
+    var n = new TextEncoder("utf-8").encode(files[i].name);
     var l = toLittleEndian(n.length);
-    var t = toLittleEndian(generateMSTime(store.files[i].lastModified));
-    var d = toLittleEndian(generateMSDate(store.files[i].lastModified));
+    var t = toLittleEndian(generateMSTime(files[i].lastModified));
+    var d = toLittleEndian(generateMSDate(files[i].lastModified));
 
     var lfh = new Uint8Array(30 + n.length);
     lfh.set(new Uint8Array([
@@ -179,11 +163,11 @@ async function createZip() {
     zip.lfh.push(lfh);
     zip.lfhSize += lfh.length;
 
-    var data = new Uint8Array(await store.files[i].arrayBuffer());
+    var data = new Uint8Array(await files[i].arrayBuffer());
     zip.data.push(data)
     zip.dataSize += data.length;
 
-    var s = toLittleEndian(store.files[i].size);
+    var s = toLittleEndian(files[i].size);
     var c = toLittleEndian(generateCRC32(data, crcTable));
 
     var dd = new Uint8Array([
@@ -194,7 +178,7 @@ async function createZip() {
     ]);
     zip.dd.push(dd);
     zip.ddSize += dd.length;
-  
+
     var cdfh = new Uint8Array(46 + n.length);
     cdfh.set(new Uint8Array([
       0x50, 0x4b, 0x01, 0x02, // signature
@@ -236,10 +220,10 @@ async function createZip() {
     0x00, 0x00              // comment length
   ]);
   zip.oecdSize = zip.oecd.length;
- 
+
   bytes = new Uint8Array(zip.lfhSize + zip.dataSize + zip.ddSize + zip.cdfhSize + zip.oecdSize);
   offset = 0;
- 
+
   for (var i = 0; i < zip.data.length; i++) {
     bytes.set(zip.lfh[i], offset);
     offset += zip.lfh[i].length;
@@ -253,15 +237,17 @@ async function createZip() {
     bytes.set(zip.cdfh[i], offset);
     offset += zip.cdfh[i].length;
   }
-  
+
   bytes.set(zip.oecd, offset);
   offset += zip.oecd.length;
 
   return new Blob([bytes]);
 }
 
-async function createNamedBlob() {
-  var n = new TextEncoder("utf-8").encode(store.files[0].name);
+// named blob
+
+async function createNamedBlob(file) {
+  var n = new TextEncoder("utf-8").encode(file.name);
   var l = toLittleEndian(n.length);
   var hdr = new Uint8Array(6 + n.length);
   hdr.set(new Uint8Array([
@@ -269,18 +255,17 @@ async function createNamedBlob() {
       l[0], l[1]              // file name length
   ]), 0);
   hdr.set(n, 6);
-  var data = new Uint8Array(await store.files[0].arrayBuffer());
-  
+  var data = new Uint8Array(await file.arrayBuffer());
+
   var bytes = new Uint8Array(hdr.length + data.length);
   bytes.set(hdr, 0);
   bytes.set(data, hdr.length);
-  
+
   return new Blob([bytes]);
 }
 
 async function isNamedBlob(blob) {
   var s = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
-  console.log(s);
   return s[0] == 0xFF && s[1] == 0xFF && s[2] == 0xFF && s[3] == 0xFF;
 }
 
@@ -293,145 +278,176 @@ async function sliceNamedBlob(blob) {
   };
 }
 
+// model
+
+const modelListeners = new Object();
+
+const model = new Proxy({
+  blob: null,
+  error: null,
+  files: new Array(),
+  hash: null,
+  id: null,
+  progress: 0,
+  state: null,
+  visible: false
+}, {
+  set(target, prop, value) {
+    target[prop] = value;
+    if (modelListeners[prop])
+      modelListeners[prop].dispatchEvent(new Event('change'));
+    return true;
+  }
+});
+
+function addChangeListener(/*prop..., func*/) {
+  var last = arguments.length - 1;
+  for (let i = 0; i < last; i++) {
+    if (!Object.prototype.hasOwnProperty.call(model, arguments[i]))
+      throw new Error("non-existent model property '" + arguments[i] + "'");
+    if (!modelListeners[arguments[i]])
+      modelListeners[arguments[i]] = document.createTextNode(null);
+    modelListeners[arguments[i]].addEventListener("change", arguments[last], false);
+  }
+}
+
+function removeChangeListener(/*prop..., func*/) {
+  var last = arguments.length - 1;
+  for (let i = 0; i < last; i++) {
+    if (!Object.prototype.hasOwnProperty.call(model, arguments[i]))
+      throw new Error("non-existent model property '" + arguments[i] + "'");
+    modelListeners[arguments[i]].removeEventListener("change", arguments[last], false);
+  }
+}
+
 // network
 
 function downloadBlob(id) {
-  return new Promise(function(resolve, reject) {
-    var req = new XMLHttpRequest();
-    req.open("GET", "/files/" + id.substr(1), true);
-    req.responseType = "blob";
-    req.addEventListener("progress", function(evt) {
-      updateStore({ progress: evt.loaded / evt.total });
-    }, false);
-    req.addEventListener("load", function() {
-      if (req.status >= 400)
-        reject(req.status);
-      else
-        resolve(req.response);
-    }, false);
-    req.addEventListener("abort", function(evt) {
-      reject(new Error("XMLHttpRequest abort"));
-    }, false);
-    req.addEventListener("error", function(evt) {
-      reject(new Error("XMLHttpRequest error"));
-    }, false);
-    req.addEventListener("timeout", function(evt) {
-      reject(new Error("XMLHttpRequest timeout"));
-    }, false);
-    req.send(null);
-  });
+  var req = new XMLHttpRequest();
+  req.open("GET", "/files/" + id.substr(1), true);
+  req.responseType = "blob";
+  req.addEventListener("progress", function(evt) {
+    model.progress = evt.loaded / evt.total;
+  }, false);
+  req.addEventListener("load", function() {
+    if (req.status >= 400) {
+      model.error = new Error("XMLHttpRequest status " + req.status);
+    }
+    else {
+      model.blob = req.response;
+      model.state = "downloaded";
+    }
+  }, false);
+  req.addEventListener("abort", function(evt) {
+    model.error = new Error("XMLHttpRequest abort");
+  }, false);
+  req.addEventListener("error", function(evt) {
+    model.error = new Error("XMLHttpRequest error");
+  }, false);
+  req.addEventListener("timeout", function(evt) {
+    model.error = new Error("XMLHttpRequest timeout");
+  }, false);
+  req.send();
 }
 
 function uploadBlob(blob) {
-  return new Promise(function(resolve, reject) {
-    var req = new XMLHttpRequest();
-    req.open("POST", "/files/", true);
-    req.responseType = "text";
-    req.upload.addEventListener("progress", function(evt) {
-      updateStore({ progress: evt.loaded / evt.total });
-    }, false);
-    req.addEventListener("load", function() {
-      if (req.status >= 400)
-        reject(req.status);
-      else
-        resolve(req.response);
-    }, false);
-    req.addEventListener("abort", function(evt) {
-      reject(new Error("XMLHttpRequest abort"));
-    }, false);
-    req.addEventListener("error", function(evt) {
-      reject(new Error("XMLHttpRequest error"));
-    }, false);
-    req.addEventListener("timeout", function(evt) {
-      reject(new Error("XMLHttpRequest timeout"));
-    }, false);
-    req.send(blob);
-  });
+  var req = new XMLHttpRequest();
+  req.open("POST", "/files/", true);
+  req.responseType = "text";
+  req.upload.addEventListener("progress", function(evt) {
+    model.progress = evt.loaded / evt.total;
+  }, false);
+  req.addEventListener("load", function() {
+    if (req.status >= 400) {
+      model.error = new Error("XMLHttpRequest status " + req.status);
+    }
+    else {
+      model.id = req.response;
+      model.state = "uploaded";
+    }
+  }, false);
+  req.addEventListener("abort", function(evt) {
+    model.error = new Error("XMLHttpRequest abort");
+  }, false);
+  req.addEventListener("error", function(evt) {
+    model.error = new Error("XMLHttpRequest error");
+  }, false);
+  req.addEventListener("timeout", function(evt) {
+    model.error = new Error("XMLHttpRequest timeout");
+  }, false);
+  req.send(blob);
 }
 
-function checkAuth(callback) {
-  return new Promise(function(resolve, reject) {
-    var req = new XMLHttpRequest();
-    req.open("POST", "/files/", true);
-    req.responseType = "text";
-    req.upload.addEventListener("progress", function(evt) {
-      updateStore({ progress: evt.loaded / evt.total });
-    }, false);
-    req.addEventListener("load", function() {
-      if (req.status >= 400)
-        reject(req.status);
-      else
-        resolve(callback());
-    }, false);
-    req.addEventListener("abort", function(evt) {
-      reject(new Error("XMLHttpRequest abort"));
-    }, false);
-    req.addEventListener("error", function(evt) {
-      reject(new Error("XMLHttpRequest error"));
-    }, false);
-    req.addEventListener("timeout", function(evt) {
-      reject(new Error("XMLHttpRequest timeout"));
-    }, false);
-    req.send();
-  });
-}
+// change listeners
 
-// store change listeners
-
-storeChangeListeners.push(async function(newStore, oldStore) {
-  if (newStore.hash && newStore.hash != oldStore.hash && newStore.visible) {
-    try {
-      updateStore({
-        progress: 0,
-        state: "downloading"
-      });
-      var blob = await downloadBlob(location.hash);
-      if (await isNamedBlob(blob)) {
-        var namedBlob  = await sliceNamedBlob(blob);
-        saveAs(namedBlob.data, namedBlob.name);
-      }
-      else {
-        saveAs(blob, "sharetastic.zip");
-      }
-      updateStore({ state: "downloaded" });
-    }
-    catch(error) {
-      console.error(error);
-      alert("Something went wrong while downloading the files.");
-    }
+addChangeListener("hash", "visible", async function() {
+  if (model.hash && model.visible) {
+    model.progress = 0;
+    model.state = "downloading";
+    downloadBlob(location.hash);
   }
 });
 
-storeChangeListeners.push(function(newStore, oldStore) {
-  if (newStore.files.length != oldStore.files.length) {
-    var fileList = document.getElementById("FileList");
-    fileList.innerHTML = "";
-    newStore.files.forEach(function(uploadFile, i) {
-      var filelistItem = document.createElement("button");
-      filelistItem.innerText = uploadFile.name;
-      filelistItem.addEventListener("click", function() {
-        files = [...store.files]
-        files.splice(i, 1);
-        updateStore({ files });
-      }, false);
-      fileList.appendChild(filelistItem);
-    });
-    if (newStore.files.length > 0)
-      updateStore({ state: "prepared" });
-    else
-      updateStore({ state: "start" });
-  }
+addChangeListener("files", function() {
+  var fileList = document.getElementById("FileList");
+  fileList.innerHTML = "";
+  model.files.forEach(function(uploadFile, i) {
+    var filelistItem = document.createElement("button");
+    filelistItem.innerText = uploadFile.name;
+    filelistItem.addEventListener("click", function() {
+      var files = [...model.files];
+      files.splice(i, 1);
+      model.files = files;
+    }, false);
+    fileList.appendChild(filelistItem);
+  });
+  if (model.files.length > 0)
+    model.state = "prepared";
+  else
+    model.state = "start";
 });
 
-storeChangeListeners.push(function(newStore, oldStore) {
+addChangeListener("state", function() {
   var element = document.getElementById("HeaderSnippet");
-  selectClass(element, newStore.state, ["start", "prepared", "uploading", "uploaded", "downloading", "downloaded"]);
+  selectClass(element, model.state, ["start", "prepared", "uploading", "uploaded", "downloading", "downloaded"]);
+
+  var form = document.getElementById("Upload");
+  if (model.state == "uploading" || model.state == "uploaded")
+    setFormActive(form, false);
+  else
+    setFormActive(form, true);
 });
 
-storeChangeListeners.push(function(newStore, oldStore) {
-  var percent = newStore.progress * 100;
+addChangeListener("progress", function() {
+  var percent = model.progress * 100;
   document.getElementById("ProgressBar").value = percent;
   document.getElementById("ProgressLabel").firstChild.innerHTML = percent.toFixed(2);
+});
+
+addChangeListener("error", function() {
+  console.error(model.error);
+  alert("Something went wrong while " + model.state + " the files.");
+});
+
+addChangeListener("blob", async function() {
+  if (await isNamedBlob(model.blob)) {
+    var namedBlob  = await sliceNamedBlob(model.blob);
+    saveAs(namedBlob.data, namedBlob.name);
+  }
+  else {
+    saveAs(model.blob, "sharetastic.zip");
+  }
+});
+
+addChangeListener("id", function() {
+  var href = location.href.slice(0, -1) + "#" + model.id;
+  document.getElementById("DownloadLink").innerText = href;
+  document.getElementById("CopyButton").addEventListener("click", function() {
+    copyToClipboard(href);
+  }, false);
+  document.getElementById("MailButton").addEventListener("click", function() {
+    sendAsMail(href);
+  }, false);
 });
 
 // events
@@ -442,53 +458,34 @@ function onDragOver(evt) {
 
 function onDrop(evt) {
   evt.preventDefault();
-  var files = [...store.files];
+  var files = [...model.files];
   for (var i = 0; i < evt.dataTransfer.items.length; i++) {
     if (evt.dataTransfer.items[i].kind === 'file')
       files.push(evt.dataTransfer.items[i].getAsFile());
     else
       console.warn("dropped item[" + i + "] of kind '" + evt.dataTransfer.items[i].kind  + "' ignored");
   }
-  updateStore({ files });
+  model.files = files;
 }
 
 function onAddChange(evt) {
   evt.preventDefault();
-  var files = [...store.files];
+  var files = [...model.files];
   for (var i = 0; i < evt.target.files.length; i++) {
     files.push(evt.target.files[i]);
   }
-  updateStore({ files });
+  model.files = files;
 }
 
 async function onUploadClick() {
-  try{
-    updateStore({
-      progress: 0,
-      state: "uploading"
-    });
-    disableFiles();
-    var blob = null;
-    if (store.files.length > 1)
-      blob = await createZip()
-    else
-      blob = await createNamedBlob();
-    var id =  await checkAuth(uploadBlob.bind(null, blob));
-    var href = location.href.slice(0, -1) + "#" + id;
-    document.getElementById("DownloadLink").innerText = href;
-    document.getElementById("CopyButton").addEventListener("click", function() {
-      copyToClipboard(href);
-    }, false);
-    document.getElementById("MailButton").addEventListener("click", function() {
-      sendAsMail(href);
-    }, false);
-    updateStore({ state: "uploaded" });
-  }
-  catch(error) {
-    console.error(error);
-    alert("Something went wrong while uploading the files.");
-    location.href = "/";
-  }
+  model.progress = 0;
+  model.state = "uploading";
+  var blob = null;
+  if (model.files.length > 1)
+    blob = await createZip(model.files)
+  else
+    blob = await createNamedBlob(model.files[0]);
+  uploadBlob(blob);
 }
 
 function onLoad() {
@@ -497,25 +494,19 @@ function onLoad() {
   dropNode.addEventListener("drop", onDrop, false);
   document.getElementById("AddInput").addEventListener("change", onAddChange, false);
   document.getElementById("UploadButton").addEventListener("click", onUploadClick, false);
-  updateStore({
-    hash: location.hash,
-    visible: document.visibilityState == "visible"
-  });
+  model.state = "start";
+  model.hash = location.hash;
+  model.visible = document.visibilityState == "visible";
 }
 
 function onVisibilityChange() {
-  updateStore({
-    visible: document.visibilityState == "visible"
-  });
+  model.visible = document.visibilityState == "visible";
 };
 
 function onHashChange() {
-  updateStore({
-    hash: location.hash
-  });
+  model.hash = location.hash;
 };
 
 window.addEventListener("load", onLoad, false);
 window.addEventListener("visibilitychange", onVisibilityChange, false);
 window.addEventListener("hashchange", onHashChange, false);
-window.addEventListener("visibilitychange", onVisibilityChange, false);
