@@ -221,8 +221,8 @@ async function createZip(files) {
   ]);
   zip.oecdSize = zip.oecd.length;
 
-  bytes = new Uint8Array(zip.lfhSize + zip.dataSize + zip.ddSize + zip.cdfhSize + zip.oecdSize);
-  offset = 0;
+  var bytes = new Uint8Array(zip.lfhSize + zip.dataSize + zip.ddSize + zip.cdfhSize + zip.oecdSize);
+  var offset = 0;
 
   for (var i = 0; i < zip.data.length; i++) {
     bytes.set(zip.lfh[i], offset);
