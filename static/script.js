@@ -461,7 +461,7 @@ addChangeListener("blob", async function() {
 });
 
 addChangeListener("id", function() {
-  var href = location.href.slice(0, -1) + "#" + model.id;
+  var href = location.href + "#" + model.id;
   document.getElementById("DownloadLink").innerText = href;
   document.getElementById("CopyButton").addEventListener("click", function() {
     copyToClipboard(href);
