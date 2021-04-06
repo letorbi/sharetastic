@@ -165,8 +165,8 @@ progress::-moz-progress-bar {
 .Framed {
   display: inline-block;
   border-style: solid;
-  border-radius: 3pt;
-  border-width: 1pt;
+  border-radius: 3px;
+  border-width: 1px;
   padding: 0.5rem;
 }
 .Framed.compact {
