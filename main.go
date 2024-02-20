@@ -54,7 +54,7 @@ func main() {
 
   http.Handle("/", http.StripPrefix("/", muxMethod(staticFs, nil)))
   http.Handle("/files/", http.StripPrefix("/files/", muxMethod(hideRoot(downloadFs), upload())))
-  http.ListenAndServe(":8090", nil)
+  http.ListenAndServe("127.0.0.1:8090", nil)
 }
 
 func muxMethod(get http.Handler, post http.Handler) http.Handler {
