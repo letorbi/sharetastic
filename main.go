@@ -24,6 +24,7 @@ import (
   "io"
   "io/ioutil"
   "log"
+  "net"
   "net/http"
   "os"
   "os/user"
@@ -52,9 +53,29 @@ func main() {
   staticFs := http.FileServer(http.Dir("./static"))
   downloadFs := http.FileServer(http.Dir(filedir))
 
+  // TODO Read interface from config file
+  listener := createListener("/var/run/sharetastic/sharetastic.sock")
+  //listener := createListener("127.0.0.1:8090")
+
   http.Handle("/", http.StripPrefix("/", muxMethod(staticFs, nil)))
   http.Handle("/files/", http.StripPrefix("/files/", muxMethod(hideRoot(downloadFs), upload())))
-  http.ListenAndServe("127.0.0.1:8090", nil)
+  if err := http.Serve(listener, nil); err != nil {
+    log.Fatal(err)
+  }
+}
+
+func createListener(iface string) net.Listener {
+  var listener net.Listener;
+  var err error;
+  if iface[0] == '/' || iface[0] == '~' {
+    listener, err = net.Listen("unix", iface)
+  } else {
+    listener, err = net.Listen("tcp", iface)
+  }
+  if err != nil {
+    log.Fatal(err)
+  }
+  return listener
 }
 
 func muxMethod(get http.Handler, post http.Handler) http.Handler {
