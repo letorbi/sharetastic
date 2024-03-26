@@ -29,6 +29,7 @@ import (
   "os"
   "os/user"
   "path/filepath"
+  "syscall"
 )
 
 var filedir string
@@ -53,7 +54,7 @@ func main() {
   staticFs := http.FileServer(http.Dir("./static"))
   downloadFs := http.FileServer(http.Dir(filedir))
 
-  // TODO Read interface from config file
+  // TODO Read interface from args or config file
   listener := createListener("/var/run/sharetastic/sharetastic.sock")
   //listener := createListener("127.0.0.1:8090")
 
@@ -68,7 +69,10 @@ func createListener(iface string) net.Listener {
   var listener net.Listener;
   var err error;
   if iface[0] == '/' || iface[0] == '~' {
+    // TODO Read umask from args or config file
+    umask := syscall.Umask(0117)
     listener, err = net.Listen("unix", iface)
+    syscall.Umask(umask)
   } else {
     listener, err = net.Listen("tcp", iface)
   }
